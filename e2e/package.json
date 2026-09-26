@@ -1,0 +1,10 @@
+{
+  "name": "desk-dashboard-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser tests against the real Docker image (see README.md)",
+  "dependencies": {
+    "@axe-core/puppeteer": "^4.10.0",
+    "puppeteer-core": "^24"
+  }
+}

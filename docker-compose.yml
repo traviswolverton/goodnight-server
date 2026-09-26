@@ -1,0 +1,124 @@
+# Plain docker-compose stack, run directly on the host — same pattern as
+# /opt/another-stack: `git clone`/`pull` this repo onto the target
+# machine, `cp .env.example .env` and fill in real values, then
+# `docker compose up -d --build`. No registry, no CI, no Portainer build
+# step — Portainer (if used) just shows/monitors it like the other
+# locally-run stacks, it doesn't drive the deploy.
+#
+# Secrets and everything else env-driven come in via `environment:` blocks
+# referencing ${VARS} rather than `env_file:` — docker compose auto-loads
+# .env from this directory for that substitution, no extra directive
+# needed (same as another-stack's django service).
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    ports:
+      # APP_BIND=127.0.0.1 makes the app reachable only from this host (e.g.
+      # through a reverse proxy running here) — see docs/reverse-proxy.md.
+      # The default keeps it on the LAN, which the ESP32 needs for /snapshot.
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-8000}:8000"
+    # Runs as this UID:GID instead of root — set it to whatever owns
+    # /opt/desk-dashboard-data/config on the host (`id -u`:`id -g`), since
+    # that's the only thing the container writes to (cards/pixels/adapters
+    # config, encrypted secrets — see app/config.py, app/secret_store.py).
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    environment:
+      MQTT_HOST: ${MQTT_HOST:-mosquitto}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_USERNAME: ${MQTT_USERNAME:-aggregator}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?set in .env}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-15}
+      HEARTBEAT_INTERVAL_SECONDS: ${HEARTBEAT_INTERVAL_SECONDS:-45}
+      # Landscape to match the ESP32 client's CAMERA screen — see
+      # app/settings.py.
+      SNAPSHOT_WIDTH: ${SNAPSHOT_WIDTH:-320}
+      SNAPSHOT_HEIGHT: ${SNAPSHOT_HEIGHT:-240}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-365}
+      APP_VERSION: ${APP_VERSION:-dev}
+      # Postgres (users/sessions/audit — see app/db.py). The app connects
+      # as its own non-superuser role (created by postgres/initdb.sh).
+      # Deliberately NOT in depends_on below: the aggregator and MQTT loop
+      # must keep running if the database is down; the app retries the
+      # connection in the background.
+      DATABASE_URL: postgresql+asyncpg://desk_dashboard:${DB_PASSWORD:?set in .env}@postgres:5432/desk_dashboard
+      # Authentication (see app/auth/, docs/plan-ui-and-auth.md). The admin
+      # pair only creates the first user, on an empty users table.
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      HTTPS_ONLY: ${HTTPS_ONLY:-false}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      SNAPSHOT_SIGNING_KEY: ${SNAPSHOT_SIGNING_KEY:-}
+      # AI-assisted template generation (app/ai_assist.py) — Ollama runs
+      # on the host, not in this compose stack. `host.docker.internal`
+      # needs the explicit extra_hosts entry below on Linux (it resolves
+      # for free on Docker Desktop, but this is a plain Linux host).
+      # Decrypts config/secrets.enc.yaml (see app/secret_store.py).
+      SECRETS_MASTER_KEY: ${SECRETS_MASTER_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Live config (adapters/cards/pixels/secrets.enc.yaml) lives OUTSIDE
+      # this repo checkout — not git-tracked, edited only through the
+      # running app's web UI — so live edits never show up
+      # as git diffs. config.example/ in the repo is the template for a
+      # fresh deploy. Read-write on purpose: the editor's Save & Apply
+      # writes back here. Writes to this path go through the HTTP API's
+      # admin-only, audit-logged endpoints (see app/auth/, DESIGN.md's
+      # "HTTP API and web UI require a login" section) — not open on the
+      # LAN the way it was before auth landed.
+      - /opt/desk-dashboard-data/config:/app/config
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      # Bootstrap superuser: used only by the one-time init script and
+      # admin work (`docker compose exec postgres psql -U postgres`). The
+      # app never connects as this user.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      APP_DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+    volumes:
+      # Postgres 18+ images keep the data in a version-specific subdirectory
+      # under /var/lib/postgresql, so the volume mounts there — NOT at
+      # /var/lib/postgresql/data like older images.
+      - postgres_data:/var/lib/postgresql
+      - ./postgres/initdb.sh:/docker-entrypoint-initdb.d/01-app-role.sh:ro
+    # No published port: only reachable from other services in this stack.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    entrypoint: ["/bin/sh", "/mosquitto-entrypoint.sh"]
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME:-aggregator}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?set in .env}
+      MQTT_CLIENT_USERNAME: ${MQTT_CLIENT_USERNAME:-esp32-client}
+      MQTT_CLIENT_PASSWORD: ${MQTT_CLIENT_PASSWORD:?set in .env}
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/entrypoint.sh:/mosquitto-entrypoint.sh:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  mosquitto_data:
+  mosquitto_log:

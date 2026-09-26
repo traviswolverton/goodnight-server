@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.pytest_cache/
+*.egg-info/
+.DS_Store
+
+# Generated at container start by mosquitto/entrypoint.sh — never commit
+# hashed passwords even though they're not plaintext.
+mosquitto/config/passwd
+
+# Live config + encrypted secrets are host-external in the real deploy
+# (see docker-compose.yml); this only guards a local dev copy. Templates
+# live in config.example/.
+config/

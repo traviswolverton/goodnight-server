@@ -1,0 +1,26 @@
+# The display's Actions menu, in order: turn the encoder to pick one, press
+# to run it. The display only ever sends an action's `id`; everything that
+# does something lives here, on the server (see app/actions.py and
+# DESIGN.md's "Actions" section). Easiest way to edit: the web UI's Actions
+# page — it has entity pickers and a Run button, and saves apply on the next
+# poll with no restart.
+#
+# `adapter` names an adapter from adapters.yaml that can run actions (today:
+# type home_assistant). `kind` is one of:
+#   service — call `service` (domain.service) on `target`, with extra `data`
+#   script  — run the `target` script.* entity, `data` as its variables
+#   event   — fire `desk_dashboard_action` with {action: <id>, label: ...}
+#             for a Home Assistant automation to handle
+# `confirm: true` makes the display ask for a second press first.
+# `state_template` (Jinja2, like a card line) is shown beside the label.
+#
+# Example:
+#   - id: desk_lamp
+#     label: Desk lamp
+#     adapter: home_assistant
+#     kind: service
+#     service: light.toggle
+#     target: light.desk
+#     state_template: "{{ adapters.home_assistant.entities['light.desk'].state }}"
+
+actions: []

@@ -1,0 +1,108 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Design tokens (shadcn conventions). Brand green matches the desk display's
+   "ok" colour; primary is a touch darker so white text on it stays >= 4.5:1. */
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.975 0.003 250);
+  --foreground: oklch(0.21 0.015 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.015 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.015 260);
+  --primary: oklch(0.52 0.115 165);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.005 250);
+  --secondary-foreground: oklch(0.28 0.015 260);
+  --muted: oklch(0.955 0.005 250);
+  --muted-foreground: oklch(0.46 0.015 260);
+  --accent: oklch(0.945 0.02 165);
+  --accent-foreground: oklch(0.32 0.07 165);
+  --destructive: oklch(0.55 0.2 27);
+  --border: oklch(0.915 0.006 250);
+  --input: oklch(0.9 0.008 250);
+  --ring: oklch(0.6 0.12 165);
+  --success: oklch(0.6 0.13 160);
+  --warning: oklch(0.68 0.14 75);
+}
+
+.dark {
+  --background: oklch(0.17 0.01 260);
+  --foreground: oklch(0.95 0.005 250);
+  --card: oklch(0.21 0.012 260);
+  --card-foreground: oklch(0.95 0.005 250);
+  --popover: oklch(0.23 0.012 260);
+  --popover-foreground: oklch(0.95 0.005 250);
+  --primary: oklch(0.72 0.14 165);
+  --primary-foreground: oklch(0.18 0.03 165);
+  --secondary: oklch(0.27 0.012 260);
+  --secondary-foreground: oklch(0.95 0.005 250);
+  --muted: oklch(0.27 0.012 260);
+  --muted-foreground: oklch(0.7 0.012 260);
+  --accent: oklch(0.3 0.04 165);
+  --accent-foreground: oklch(0.92 0.04 165);
+  --destructive: oklch(0.7 0.19 22);
+  --border: oklch(1 0 0 / 11%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.65 0.13 165);
+  --success: oklch(0.72 0.14 160);
+  --warning: oklch(0.78 0.14 80);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+/* Respect the OS "reduce motion" setting: no slide/fade/spin animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
