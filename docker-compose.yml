@@ -40,12 +40,14 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-365}
       APP_VERSION: ${APP_VERSION:-dev}
-      # Postgres (users/sessions/audit — see app/db.py). The app connects
-      # as its own non-superuser role (created by postgres/initdb.sh).
-      # Deliberately NOT in depends_on below: the aggregator and MQTT loop
-      # must keep running if the database is down; the app retries the
-      # connection in the background.
-      DATABASE_URL: postgresql+asyncpg://desk_dashboard:${DB_PASSWORD:?set in .env}@postgres:5432/desk_dashboard
+      # Postgres (users/sessions/audit — see app/db.py), normally an
+      # external/central server; the bundled `postgres` service below is
+      # opt-in (COMPOSE_PROFILES=local-db). Either way the app connects as
+      # its own non-superuser role that owns its database — see
+      # docs/database.md. Deliberately NOT in depends_on below: the
+      # aggregator and MQTT loop must keep running if the database is down;
+      # the app retries the connection in the background.
+      DATABASE_URL: ${DATABASE_URL:?set in .env}
       # Authentication (see app/auth/, docs/plan-ui-and-auth.md). The admin
       # pair only creates the first user, on an empty users table.
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
@@ -78,15 +80,19 @@ services:
       - mosquitto
     restart: unless-stopped
 
+  # Optional bundled database, for a host without a central Postgres:
+  # set COMPOSE_PROFILES=local-db in .env and point DATABASE_URL at
+  # @postgres:5432 (see .env.example). Without the profile it isn't started.
   postgres:
     image: postgres:18-alpine
+    profiles: ["local-db"]
     environment:
       # Bootstrap superuser: used only by the one-time init script and
       # admin work (`docker compose exec postgres psql -U postgres`). The
       # app never connects as this user.
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
-      APP_DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      APP_DB_PASSWORD: ${DB_PASSWORD:-}
     volumes:
       # Postgres 18+ images keep the data in a version-specific subdirectory
       # under /var/lib/postgresql, so the volume mounts there — NOT at

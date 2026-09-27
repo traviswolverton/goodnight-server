@@ -22,8 +22,11 @@ cp .env.example .env        # then fill in the passwords (see the comments insid
 docker compose up -d --build
 ```
 
-Set at least `MQTT_PASSWORD`, `MQTT_CLIENT_PASSWORD`, `POSTGRES_PASSWORD`,
-`DB_PASSWORD`, and `ADMIN_USERNAME` / `ADMIN_PASSWORD` (12+ characters). The
+Set at least `MQTT_PASSWORD`, `MQTT_CLIENT_PASSWORD`, `DATABASE_URL`, and
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` (12+ characters). `DATABASE_URL` points at
+a Postgres you provide (one-time role/database setup in
+[`docs/database.md`](docs/database.md)), or at the bundled container via the
+`local-db` compose profile. The
 first start creates that administrator; sign in at `http://<host>:8000`. After
 that the two `ADMIN_*` values are ignored and can be removed.
 
@@ -70,7 +73,7 @@ frontend/       React app (Vite, TypeScript, Tailwind, shadcn/ui)
 e2e/            Browser tests (Puppeteer + axe-core, run in Docker)
 tests/          pytest suite
 schema/         JSON Schema for the MQTT payloads (regenerate: scripts/export_schema.py)
-mosquitto/      Broker config;  postgres/  first-boot role creation
+mosquitto/      Broker config;  postgres/  first-boot role creation (bundled DB only)
 docs/           Longer-form docs and plans
 ```
 
