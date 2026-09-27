@@ -1,0 +1,12 @@
+# The bedside device's own settings (app/device.py) — edited on the web
+# UI's Device page. Missing file = these defaults, no buttons bound.
+dimmer:
+  bright_lux: 20      # at or above: full brightness
+  dark_lux: 2         # below: screen off until a control is touched
+  dim_contrast: 1     # 0-255, used between the two and when woken in the dark
+  wake_seconds: 15    # how long a touch keeps it on in the dark
+# Which Action (actions.yaml id) each button runs. Presses on unbound
+# buttons are still shown on the Device page and still reach Home Assistant.
+buttons:
+  1:
+    short: bedroom_lamp

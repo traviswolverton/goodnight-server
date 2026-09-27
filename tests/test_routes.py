@@ -48,8 +48,8 @@ def test_mqtt_reference_exposes_both_schemas_and_the_real_client_limits():
         "max_actions": MAX_ACTIONS, "action_label_max_chars": LABEL_MAX, "action_state_max_chars": STATE_MAX,
     }
     assert "sig" in data["camera_example"]["snapshot_url"]          # documents the signed link
-    assert data["action_topic"] == "homelab/action"
-    assert data["action_result_topic"] == "homelab/action/result"
+    assert data["action_topic"] == "bedside/action"
+    assert data["action_result_topic"] == "bedside/action/result"
     assert ActionRequest.model_validate(data["action_example"])
     assert ActionResult.model_validate(data["action_result_example"])
 

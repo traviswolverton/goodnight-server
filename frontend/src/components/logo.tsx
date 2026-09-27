@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 
-/** The Desk Dashboard mark: three "pixels" in a rounded square (same as the favicon). */
+/** The Bedside Dashboard mark: three "pixels" in a rounded square (same as the favicon). */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true" className={cn('size-8', className)}>

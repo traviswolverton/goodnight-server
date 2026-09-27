@@ -6,6 +6,7 @@ import type {
   AdapterType,
   AuditEntry,
   CardsResponse,
+  DeviceResponse,
   MqttReference,
   Overview,
   PixelsResponse,
@@ -29,6 +30,12 @@ export const actionsQuery = queryOptions({
   queryKey: ['actions'],
   queryFn: () => api<ActionsResponse>('/api/actions'),
   refetchInterval: 15_000, // live states
+})
+
+export const deviceQuery = queryOptions({
+  queryKey: ['device'],
+  queryFn: () => api<DeviceResponse>('/api/device'),
+  refetchInterval: 5_000, // live readings and presses
 })
 
 export const swatchesQuery = queryOptions({

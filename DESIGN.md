@@ -1,10 +1,50 @@
-# Desk Dashboard — Server (aggregator microservice)
+# Bedside Dashboard — Server (aggregator microservice)
 
 ## Role in the system
 This is the "server" in a server/client relationship with an ESP32 desk
 dashboard. It owns all business logic — polling homelab services, normalizing
 their status, deciding severity, and pushing updates. The ESP32 client is
 intentionally dumb: it just renders whatever this service sends it.
+
+## This fork: the bedside device
+Forked from desk-dashboard-server on 2026-09-27 with full history; most of
+this document is inherited and still describes the desk unit's display
+(320×240 color LCD, rotary encoder, 5 LEDs, camera snapshots). What differs
+here so far:
+
+- **Separate stack.** Own Postgres (`bedside_dashboard`), own Mosquitto,
+  own config dir (`/opt/bedside-dashboard-data/config`). Web UI on host port
+  8001, broker on 1884 (1883 inside the stack) — so it runs beside the desk
+  stack on the same host. Every topic is `bedside/*` instead of `homelab/*`.
+- **The device's hardware is a first-class thing** (`app/device.py`), not
+  just a renderer: it reports sensors and presses, and takes settings.
+
+| Topic | Direction | Retained | |
+|---|---|---|---|
+| `bedside/config` | server → device | yes | dimmer thresholds, from `config/device.yaml` |
+| `bedside/sensors` | device → server | yes | `{"temperature_c", "humidity", "lux", "screen"}` every 30s |
+| `bedside/button` | device → server | no | `{"button": 1-8, "press": "short"\|"long"}` |
+| `bedside/availability` | device → server | yes | `online` / `offline` (last will) |
+
+- **Buttons are bound here, not on the device.** `config/device.yaml` maps
+  each button's short/long press to an Action id; `MqttDeviceLink` runs it
+  through the same `ActionRunner` (and debounce) as the web UI's Run button.
+  An unbound press is still recorded on the Device page.
+- **Home Assistant via MQTT discovery.** On connect the server publishes,
+  retained under `homeassistant/`, three sensors (temperature, humidity,
+  illuminance) and a device trigger per button and press length. The
+  sensors read the device's own topic, so they don't depend on the server
+  staying up. HA has to read this broker — either its MQTT integration
+  points here (optional `homeassistant` account, `MQTT_HA_PASSWORD`), or a
+  bridge from HA's broker. Device-trigger payloads must match the firmware's
+  `publishButton()` byte for byte (tests/test_device.py checks).
+- **Sensors in templates.** The `bedside_device` adapter reads the latest
+  report: `{{ adapters.<name>.temperature_c }}`, `temperature_f`,
+  `humidity`, `lux`, `screen`, `online`, `last_report_seconds`.
+- **Not yet adapted:** the status payload, Cards limits, Pixels (the
+  bedside unit has no LEDs), the camera alert and the Actions menu are
+  still the desk unit's. The next step is a small-screen payload (3 lines
+  of 21 characters on a 128×32 OLED) and trimming what doesn't apply.
 
 ## Architecture: adapter pattern
 Each integration is a small class implementing one method:
@@ -106,12 +146,12 @@ same "nothing lights up for free" rule Pixels already follow.
 
 ## Transport: MQTT (push, not polling)
 The aggregator is mainly an MQTT **publisher** — its one subscription is
-`homelab/action`, the display asking for an Action (see "Actions"). It
+`bedside/action`, the display asking for an Action (see "Actions"). It
 publishes to:
-- `homelab/status` — full merged status payload, published on any adapter
+- `bedside/status` — full merged status payload, published on any adapter
   state change, PLUS a periodic heartbeat (~30-60s) even with no change, so a
   missed message or client reconnect doesn't leave the display stale.
-- `homelab/alert/camera` — published when Frigate (or another adapter) flags
+- `bedside/alert/camera` — published when Frigate (or another adapter) flags
   an alert-worthy event; carries a reference/URL to the triggering snapshot.
   The ESP32 client jumps straight to a camera pop-up view on receipt.
 
@@ -184,9 +224,9 @@ for it — nothing lights up "for free" the way it used to.
 ## Actions (two-way: the display asks, the server acts)
 Added 2026-09-26 with the Home Assistant adapter. The display's MENU gets
 an **Actions** item listing `actions[]` from the status payload; turning
-the encoder picks one and pressing sends its `id` on `homelab/action`.
+the encoder picks one and pressing sends its `id` on `bedside/action`.
 This server looks the id up in `config/actions.yaml`, performs it, and
-replies on `homelab/action/result`.
+replies on `bedside/action/result`.
 
 **Architecture, and why:** device → dedicated broker → this server →
 Home Assistant's REST API. The more HA-native options were considered and
@@ -197,7 +237,7 @@ of credentials on the device. As built, the display never holds a Home
 Assistant credential and can only trigger actions already listed on the
 server — a stolen `esp32-client` login can press the same buttons the
 desk can, nothing more. (Mosquitto's ACL gives `esp32-client` write
-access to `homelab/action` only.)
+access to `bedside/action` only.)
 
 **An action** (`app/actions.py`, one entry in `actions.yaml`, edited on
 the web UI's Actions page) has an `id` (what the device sends), a
@@ -343,7 +383,7 @@ them against each other). Implemented in `app/models.py`
 (regenerate via `python3 scripts/export_schema.py` after any model
 change) for the client repo to validate firmware-side fixtures against.
 
-### `homelab/status`
+### `bedside/status`
 Published on any adapter state change and as a ~30-60s heartbeat regardless.
 ```json
 {
@@ -442,7 +482,7 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
   predates it just ignores the key.
 - `ts` is unix seconds.
 
-### `homelab/alert/camera`
+### `bedside/alert/camera`
 ```json
 {
   "camera": "front_door",
@@ -458,7 +498,7 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
 - `label` is the detected object class, optional.
 - `text` is pre-worded for display, not derived client-side.
 
-### `homelab/action` (published by the display)
+### `bedside/action` (published by the display)
 ```json
 {"id": "desk_lamp", "req": 17}
 ```
@@ -469,7 +509,7 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
   listed in `config/actions.yaml`; any other `id` gets an "Unknown
   action" reply and does nothing.
 
-### `homelab/action/result` (published by the server)
+### `bedside/action/result` (published by the server)
 ```json
 {"id": "desk_lamp", "req": 17, "ok": true, "text": "Done"}
 ```
@@ -633,7 +673,7 @@ bumped the per-line limit from 47 to 99, then split it per row
 number below is still current; these are a snapshot, not a contract like
 the JSON schema above is.
 
-`homelab/status`, per service:
+`bedside/status`, per service:
 - `name`: 23 usable chars (24-byte buffer)
 - `status`: 7 chars (the three literal values all fit easily — not a
   practical concern)
@@ -658,7 +698,7 @@ the JSON schema above is.
   writes just that line), shows each line's rendered length against its
   row's limit and whether it scrolls, and warns on save. Mirrored in `app.aggregator.CLIENT_LINE_MAX_CHARS`.
 
-`homelab/status`, top level:
+`bedside/status`, top level:
 - `overall.text`: 47 chars
 - `services[]`: **max 10 entries** (raised from 8 by
   `desk-dashboard-esp32@20a9472`, 2026-09-17, to match the candidate-adapter
@@ -667,7 +707,7 @@ the JSON schema above is.
 - `pixels`: fixed at exactly 5 indices, tied to the physical LED count —
   not really a content limit, just noted for completeness
 
-`homelab/alert/camera`:
+`bedside/alert/camera`:
 - `camera`: 31 chars, `snapshot_url`: 159 chars, `text`: 63 chars
 
 ## Camera / Frigate integration
@@ -677,7 +717,7 @@ No live video — ESP32 can't decode RTSP/H.264. Instead:
   `/api/stats` for camera/detector health (a normal status reading for
   cards/pixels), and the optional `Adapter.poll_alerts()` hook reads
   `/api/events` and returns new `CameraAlert`s, which the aggregator
-  publishes to `homelab/alert/camera` every poll. Any adapter can
+  publishes to `bedside/alert/camera` every poll. Any adapter can
   override `poll_alerts()`; the default returns nothing.
 - Alerts are edge-triggered, so the adapter keeps its own state: the ids
   of events already seen (the first poll only baselines, so a restart
@@ -796,8 +836,8 @@ the ESP32 client needs to reach both from elsewhere on the network.
   topic. TLS was deliberately skipped — LAN-only dedicated broker; revisit
   if it's ever exposed beyond the LAN. **Changed 2026-09-26 for Actions:**
   each account now has exactly one topic in the other direction —
-  `esp32-client` writes `homelab/action` and reads
-  `homelab/action/result`, `aggregator` the reverse; everything else is
+  `esp32-client` writes `bedside/action` and reads
+  `bedside/action/result`, `aggregator` the reverse; everything else is
   as before.
 - ~~Build adapters incrementally~~ — 7 adapters built in `app/adapters/`.
   Verified 2026-09-23 by polling each once against the real homelab

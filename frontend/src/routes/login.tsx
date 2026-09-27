@@ -43,12 +43,12 @@ export function LoginPage() {
       <div className="grid w-full max-w-sm gap-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <LogoMark className="size-12" />
-          <h1 className="text-2xl font-semibold tracking-tight">Desk Dashboard</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Bedside Dashboard</h1>
         </div>
         <Card>
           <CardHeader>
             <CardTitle>Sign in</CardTitle>
-            <CardDescription>Use your Desk Dashboard account.</CardDescription>
+            <CardDescription>Use your Bedside Dashboard account.</CardDescription>
           </CardHeader>
           <CardContent>
             <LoginForm onSuccess={onSuccess} />

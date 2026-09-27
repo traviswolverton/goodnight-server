@@ -19,6 +19,10 @@ PASSWD_FILE="$CONF_DIR/passwd"
 rm -f "$PASSWD_FILE"
 mosquitto_passwd -b -c "$PASSWD_FILE" "$MQTT_USERNAME" "$MQTT_PASSWORD"
 mosquitto_passwd -b "$PASSWD_FILE" "$MQTT_CLIENT_USERNAME" "$MQTT_CLIENT_PASSWORD"
+# Home Assistant's account is optional: only created when a password is set.
+if [ -n "${MQTT_HA_PASSWORD:-}" ]; then
+  mosquitto_passwd -b "$PASSWD_FILE" "${MQTT_HA_USERNAME:-homeassistant}" "$MQTT_HA_PASSWORD"
+fi
 # This entrypoint runs as root so mosquitto itself can bind and then drop
 # privileges to the "mosquitto" user — chown so *that* user can still read
 # the file after dropping, or it dies with EACCES right after startup.

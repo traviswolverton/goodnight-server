@@ -49,7 +49,7 @@ function Brand() {
   return (
     <Link to="/" className="flex items-center gap-2.5 rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
       <LogoMark className="size-7" />
-      <span className="text-base font-semibold tracking-tight">Desk Dashboard</span>
+      <span className="text-base font-semibold tracking-tight">Bedside Dashboard</span>
     </Link>
   )
 }

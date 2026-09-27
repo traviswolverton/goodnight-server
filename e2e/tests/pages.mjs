@@ -130,6 +130,20 @@ await step('actions', async () => {
   await shot('p1-actions')
 })
 
+await step('device', async () => {
+  await goto('/device')
+  // The stack has a broker but no device, so: connected, never heard from.
+  check('device: waits for the device to report', /Not heard from yet/.test(await text()))
+  check('device: no presses yet', /No presses yet/.test(await text()))
+  await page.locator('input[aria-describedby$="bright_lux-help"]').fill('35'); await sleep(200)
+  await click('Save'); await sleep(800)
+  check('device: dimmer saved', (await api('/api/device')).body.config.dimmer.bright_lux === 35)
+  await page.locator('input[aria-describedby$="dark_lux-help"]').fill('99'); await sleep(200)
+  await click('Save'); await sleep(300)
+  check('device: refuses dark above bright', /must not be above the full-brightness level/.test(await text()))
+  await shot('p1-device')
+})
+
 await step('adapters', async () => {
   await goto('/adapters')
   check('adapters: existing adapter listed with type + state', /adguard_main/.test(await text()) && /adguard/.test(await text()) && /(Running|Needs restart|Disabled)/.test(await text()))
@@ -177,7 +191,7 @@ await step('users', async () => {
 await step('mqtt + redirects', async () => {
   await goto('/mqtt')
   const t = await text()
-  check('mqtt: reference shows topics, live example, limits', /homelab\/status/.test(t) && /homelab\/alert\/camera/.test(t) && /Client display limits/.test(t) && /23 characters/.test(t))
+  check('mqtt: reference shows topics, live example, limits', /bedside\/status/.test(t) && /bedside\/alert\/camera/.test(t) && /Client display limits/.test(t) && /23 characters/.test(t))
   await goto('/tools/lines-template'); check('old editor bookmark → /cards', path().startsWith('/cards'), path())
   await goto('/docs/mqtt'); check('old MQTT docs bookmark → /mqtt', path() === '/mqtt', path())
   await shot('m1-mqtt')
@@ -220,7 +234,7 @@ await step('viewer', async () => {
 await step('mobile', async () => {
   await page.setViewport({ width: 390, height: 800, isMobile: true, hasTouch: true })
   await login(ADMIN.u, ADMIN.p)
-  for (const p of ['/', '/cards', '/pixels', '/adapters', '/users', '/mqtt', '/profile']) {
+  for (const p of ['/', '/device', '/cards', '/pixels', '/adapters', '/users', '/mqtt', '/profile']) {
     await goto(p)
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
     check(`mobile: ${p} has no horizontal scroll`, fits, `scrollWidth=${await page.evaluate(() => document.documentElement.scrollWidth)}`)

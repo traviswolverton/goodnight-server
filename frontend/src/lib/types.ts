@@ -244,3 +244,48 @@ export interface PreviewActionStateResponse {
   state: string | null
   error: string | null
 }
+
+/** The bedside device (app/device.py). */
+export interface DimmerConfig {
+  bright_lux: number
+  dark_lux: number
+  dim_contrast: number
+  wake_seconds: number
+}
+export type PressKind = 'short' | 'long'
+export interface ButtonBinding {
+  short?: string | null
+  long?: string | null
+}
+export interface DeviceConfig {
+  dimmer: DimmerConfig
+  /** Keyed by button number, "1"-"8". Unbound buttons are absent. */
+  buttons: Record<string, ButtonBinding>
+}
+export interface SensorReading {
+  temperature_c: number | null
+  humidity: number | null
+  lux: number | null
+  screen: 'off' | 'dim' | 'full' | null
+}
+export interface ButtonPress {
+  button: number
+  press: PressKind
+  /** Unix seconds. */
+  at: number
+  action: string | null
+  ok: boolean | null
+  text: string | null
+}
+export interface DeviceResponse {
+  /** null until the broker has said either way. */
+  online: boolean | null
+  link_connected: boolean
+  sensors: SensorReading | null
+  sensors_age_seconds: number | null
+  presses: ButtonPress[]
+  config: DeviceConfig
+  actions: { id: string; label: string }[]
+  num_buttons: number
+  ha_discovery: boolean
+}

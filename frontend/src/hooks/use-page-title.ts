@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-const APP_NAME = 'Desk Dashboard'
+const APP_NAME = 'Bedside Dashboard'
 
 export function usePageTitle(title?: string) {
   useEffect(() => {

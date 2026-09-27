@@ -23,7 +23,7 @@ STARTED_AT = time.time()
 SCHEMA_DIR = Path(__file__).resolve().parent.parent.parent / "schema"
 
 # Illustrative only — camera alerts are one-shot events (see
-# app/adapters/frigate.py), so unlike homelab/status there's no retained
+# app/adapters/frigate.py), so unlike bedside/status there's no retained
 # real example to pull from app.state.
 CAMERA_ALERT_EXAMPLE = CameraAlert(
     camera="front_door",

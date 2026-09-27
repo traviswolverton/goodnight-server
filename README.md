@@ -1,13 +1,17 @@
-# Desk Dashboard Server
+# Bedside Dashboard Server
 
-Polls your homelab services (AdGuard, Proxmox, TrueNAS, UniFi, Frigate, Uptime
-Kuma, Tracearr, …), turns what it finds into what a small desk display should
-show, and publishes it over MQTT to an ESP32 client. A web UI lets you change
-what's shown, manage the adapters, and see what the display is doing.
+The bedside sibling of [desk-dashboard-server](https://github.com/traviswolverton/desk-dashboard-server),
+forked with full history (`upstream` remote). Same job — poll homelab services,
+turn them into what a small display should show, publish it over MQTT — for a
+nightstand ESP32 ([bedside-dashboard-esp32](https://github.com/traviswolverton/bedside-dashboard-esp32))
+with a 128×32 OLED, 8 buttons, a joystick, and light/temperature/humidity
+sensors. On top of the desk server it adds the **Device** page: live sensor
+readings, the screen's light-following dimmer, and what each button does.
 
 - **Web UI** — React (`frontend/`), served by the same container.
 - **API + poller** — FastAPI (`app/`): adapters → cards/pixels (Jinja2 templates)
-  → MQTT (`homelab/status`, `homelab/alert/camera`).
+  → MQTT (`bedside/status`); the device link (`app/device.py`) sends the device
+  its settings and reads its sensors and button presses.
 - **Accounts** — Postgres; admin/viewer roles, sessions, audit log.
 - **MQTT broker** — a dedicated Mosquitto in the same compose stack.
 
@@ -24,11 +28,11 @@ docker compose up -d --build
 
 Set at least `MQTT_PASSWORD`, `MQTT_CLIENT_PASSWORD`, `POSTGRES_PASSWORD`,
 `DB_PASSWORD`, and `ADMIN_USERNAME` / `ADMIN_PASSWORD` (12+ characters). The
-first start creates that administrator; sign in at `http://<host>:8000`. After
+first start creates that administrator; sign in at `http://<host>:8001`. After
 that the two `ADMIN_*` values are ignored and can be removed.
 
 Live configuration (adapters, cards, pixels, encrypted secrets) lives outside
-the repo in `/opt/desk-dashboard-data/config` and is edited through the web UI;
+the repo in `/opt/bedside-dashboard-data/config` and is edited through the web UI;
 `config.example/` shows the file formats.
 
 The container runs a **single worker on purpose** — the poll loop and MQTT

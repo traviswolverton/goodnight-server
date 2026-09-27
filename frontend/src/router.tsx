@@ -75,6 +75,12 @@ const homeRoute = createRoute({
   },
 })
 
+const deviceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/device',
+  component: lazyRouteComponent(() => import('@/routes/device'), 'DevicePage'),
+})
+
 const cardsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/cards',
@@ -154,6 +160,7 @@ const routeTree = rootRoute.addChildren([
   oldMqttDocsRoute,
   appRoute.addChildren([
     homeRoute,
+    deviceRoute,
     cardsRoute,
     pixelsRoute,
     actionsRoute,

@@ -21,12 +21,23 @@ class Settings(BaseSettings):
     # Must match a user in mosquitto/config/acl.conf — see .env.example.
     mqtt_username: str = "aggregator"
     mqtt_password: str | None = None
-    mqtt_status_topic: str = "homelab/status"
-    mqtt_camera_alert_topic: str = "homelab/alert/camera"
+    mqtt_status_topic: str = "bedside/status"
+    mqtt_camera_alert_topic: str = "bedside/alert/camera"
     # Actions (app/actions.py): the display publishes to the first, this
     # service replies on the second.
-    mqtt_action_topic: str = "homelab/action"
-    mqtt_action_result_topic: str = "homelab/action/result"
+    mqtt_action_topic: str = "bedside/action"
+    mqtt_action_result_topic: str = "bedside/action/result"
+    # The bedside device itself (app/device.py): its settings go out on
+    # the first (retained); it reports on the rest.
+    mqtt_device_config_topic: str = "bedside/config"
+    mqtt_sensors_topic: str = "bedside/sensors"
+    mqtt_button_topic: str = "bedside/button"
+    mqtt_availability_topic: str = "bedside/availability"
+    # Home Assistant MQTT discovery (app/device.py): the device's sensors
+    # and button presses announced under this prefix, retained. Only
+    # useful if Home Assistant reads this broker (directly or bridged);
+    # blank turns it off.
+    ha_discovery_prefix: str = "homeassistant"
 
     # Aggregator loop timing
     poll_interval_seconds: float = 15.0
@@ -74,6 +85,8 @@ class Settings(BaseSettings):
     cards_config_path: str = "config/cards.yaml"
     pixels_config_path: str = "config/pixels.yaml"
     actions_config_path: str = "config/actions.yaml"
+    # Dimmer settings and button bindings for the bedside device (app/device.py).
+    device_config_path: str = "config/device.yaml"
     # Encrypted per-adapter credentials (app/secret_store.py). The master
     # key is the one secret still held unencrypted; see .env.example.
     secrets_config_path: str = "config/secrets.enc.yaml"

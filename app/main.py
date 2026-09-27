@@ -23,6 +23,7 @@ from app.aggregator import Aggregator
 from app.api import router as api_router
 from app.config import load_adapters, load_cards
 from app.db import Database
+from app.device import MqttDeviceLink, device_state
 from app.auth.bootstrap import bootstrap_admin
 from app.auth.retention import prune_audit_log
 from app.mqtt import MqttActionListener, MqttPublisher
@@ -58,10 +59,14 @@ async def lifespan(app: FastAPI):
     action_runner = ActionRunner(aggregator, settings.actions_config_path)
     listener_task = asyncio.create_task(MqttActionListener(action_runner).run_forever())
 
+    device_link = MqttDeviceLink(device_state, action_runner, settings.device_config_path)
+    device_task = asyncio.create_task(device_link.run_forever())
+
     app.state.http_client = http_client
     app.state.publisher = publisher
     app.state.aggregator = aggregator
     app.state.action_runner = action_runner
+    app.state.device_link = device_link
     app.state.database = database
 
     try:
@@ -69,11 +74,12 @@ async def lifespan(app: FastAPI):
     finally:
         aggregator.stop()
         await loop_task
-        listener_task.cancel()
-        try:
-            await listener_task
-        except asyncio.CancelledError:
-            pass
+        for task in (listener_task, device_task):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         await publisher.disconnect()
         await database.stop()
         for adapter in adapters:
@@ -83,7 +89,7 @@ async def lifespan(app: FastAPI):
 
 # No built-in /docs, /redoc or /openapi.json: they'd publish the whole API
 # surface to anyone who can reach the port. (/docs/mqtt is our own page.)
-app = FastAPI(title="Desk Dashboard Server", lifespan=lifespan,
+app = FastAPI(title="Bedside Dashboard Server", lifespan=lifespan,
               docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(router)
 app.include_router(api_router)

@@ -47,7 +47,7 @@ for _ in $(seq 1 60); do docker exec "$ID-pg" pg_isready -U postgres -h 127.0.0.
 sleep 3
 docker run -d --name "$ID-app" --network "$NET" --network-alias dashapp --user "$(id -u):$(id -g)" \
   -v "$WORK/cfg:/app/config" -e MQTT_HOST=mqtt \
-  -e DATABASE_URL="postgresql+asyncpg://desk_dashboard:$APP_PW@pg:5432/desk_dashboard" \
+  -e DATABASE_URL="postgresql+asyncpg://bedside_dashboard:$APP_PW@pg:5432/bedside_dashboard" \
   -e ADMIN_USERNAME=smokeadmin -e ADMIN_PASSWORD="$ADMIN_PW" -e APP_VERSION=e2e "dd-$ID-app" >/dev/null
 for _ in $(seq 1 60); do
   docker run --rm --network "$NET" curlimages/curl -fs http://dashapp:8000/healthz >/dev/null 2>&1 && break; sleep 1

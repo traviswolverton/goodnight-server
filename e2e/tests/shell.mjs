@@ -23,12 +23,12 @@ await t.step('sign-in', async () => {
   await page.click('button[type=submit]')
   await settle()
   check('login returns to the page you asked for', path() === '/cards', path())
-  check('page title follows the page', (await page.title()) === 'Cards · Desk Dashboard', await page.title())
+  check('page title follows the page', (await page.title()) === 'Cards · Bedside Dashboard', await page.title())
 })
 
 await t.step('navigation', async () => {
   const nav = await page.$$eval('aside nav a', (a) => a.map((x) => x.textContent.trim()))
-  check('admin sees all seven sections', nav.join(',') === 'Home,Cards,Pixels,Actions,Adapters,Users,MQTT reference', nav.join(','))
+  check('admin sees all eight sections', nav.join(',') === 'Home,Device,Cards,Pixels,Actions,Adapters,Users,MQTT reference', nav.join(','))
   check('current section is marked for assistive tech', (await page.$eval('aside nav a[aria-current=page]', (a) => a.textContent.trim()).catch(() => '')) === 'Cards')
   await goto('/pixels')
   check('deep link + refresh keeps the session and route', path() === '/pixels' && (await page.$eval('h1', (h) => h.textContent)) === 'Pixels')
@@ -59,7 +59,7 @@ await t.step('mobile', async () => {
   await page.click('button[aria-label="Open menu"]')
   await page.waitForSelector('[role=dialog] nav')
   await sleep(700)
-  check('drawer is fully on screen with every link', (await page.$$eval('[role=dialog] nav a', (a) => a.length)) === 7 && (await page.$eval('[role=dialog]', (d) => { const b = d.getBoundingClientRect(); return b.left >= 0 && b.width > 200 })))
+  check('drawer is fully on screen with every link', (await page.$$eval('[role=dialog] nav a', (a) => a.length)) === 8 && (await page.$eval('[role=dialog]', (d) => { const b = d.getBoundingClientRect(); return b.left >= 0 && b.width > 200 })))
   await page.keyboard.press('Escape')
   await page.setViewport({ width: 1280, height: 900 })
 })

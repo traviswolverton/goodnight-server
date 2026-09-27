@@ -20,9 +20,9 @@ services:
       # APP_BIND=127.0.0.1 makes the app reachable only from this host (e.g.
       # through a reverse proxy running here) — see docs/reverse-proxy.md.
       # The default keeps it on the LAN, which the ESP32 needs for /snapshot.
-      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-8000}:8000"
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-8001}:8000"
     # Runs as this UID:GID instead of root — set it to whatever owns
-    # /opt/desk-dashboard-data/config on the host (`id -u`:`id -g`), since
+    # /opt/bedside-dashboard-data/config on the host (`id -u`:`id -g`), since
     # that's the only thing the container writes to (cards/pixels/adapters
     # config, encrypted secrets — see app/config.py, app/secret_store.py).
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
@@ -33,6 +33,8 @@ services:
       MQTT_PASSWORD: ${MQTT_PASSWORD:?set in .env}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-15}
       HEARTBEAT_INTERVAL_SECONDS: ${HEARTBEAT_INTERVAL_SECONDS:-45}
+      # Home Assistant MQTT discovery for the device (app/device.py); blank = off.
+      HA_DISCOVERY_PREFIX: ${HA_DISCOVERY_PREFIX-homeassistant}
       # Landscape to match the ESP32 client's CAMERA screen — see
       # app/settings.py.
       SNAPSHOT_WIDTH: ${SNAPSHOT_WIDTH:-320}
@@ -45,7 +47,7 @@ services:
       # Deliberately NOT in depends_on below: the aggregator and MQTT loop
       # must keep running if the database is down; the app retries the
       # connection in the background.
-      DATABASE_URL: postgresql+asyncpg://desk_dashboard:${DB_PASSWORD:?set in .env}@postgres:5432/desk_dashboard
+      DATABASE_URL: postgresql+asyncpg://bedside_dashboard:${DB_PASSWORD:?set in .env}@postgres:5432/bedside_dashboard
       # Authentication (see app/auth/, docs/plan-ui-and-auth.md). The admin
       # pair only creates the first user, on an empty users table.
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
@@ -73,7 +75,7 @@ services:
       # admin-only, audit-logged endpoints (see app/auth/, DESIGN.md's
       # "HTTP API and web UI require a login" section) — not open on the
       # LAN the way it was before auth landed.
-      - /opt/desk-dashboard-data/config:/app/config
+      - /opt/bedside-dashboard-data/config:/app/config
     depends_on:
       - mosquitto
     restart: unless-stopped
@@ -107,10 +109,16 @@ services:
     environment:
       MQTT_USERNAME: ${MQTT_USERNAME:-aggregator}
       MQTT_PASSWORD: ${MQTT_PASSWORD:?set in .env}
-      MQTT_CLIENT_USERNAME: ${MQTT_CLIENT_USERNAME:-esp32-client}
+      MQTT_CLIENT_USERNAME: ${MQTT_CLIENT_USERNAME:-bedside-esp32}
       MQTT_CLIENT_PASSWORD: ${MQTT_CLIENT_PASSWORD:?set in .env}
+      # Optional third account for Home Assistant (see acl.conf). Leave the
+      # password blank and no such account exists.
+      MQTT_HA_USERNAME: ${MQTT_HA_USERNAME:-homeassistant}
+      MQTT_HA_PASSWORD: ${MQTT_HA_PASSWORD:-}
     ports:
-      - "1883:1883"
+      # 1884 on the host: the desk dashboard's broker already has 1883.
+      # Inside the stack it's still 1883.
+      - "${MQTT_PUBLISH_PORT:-1884}:1883"
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/entrypoint.sh:/mosquitto-entrypoint.sh:ro
