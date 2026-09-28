@@ -9,7 +9,9 @@ what's shown, manage the adapters, and see what the display is doing.
 - **API + poller** — FastAPI (`app/`): adapters → cards/pixels (Jinja2 templates)
   → MQTT (`homelab/status`, `homelab/alert/camera`).
 - **Accounts** — Postgres; admin/viewer roles, sessions, audit log.
-- **MQTT broker** — a dedicated Mosquitto in the same compose stack.
+- **MQTT broker** — your central broker (accounts and ACLs in
+  [`docs/mqtt-broker.md`](docs/mqtt-broker.md)), or a bundled Mosquitto via the
+  `local-mqtt` compose profile.
 
 Design and history: [`DESIGN.md`](DESIGN.md) · data flow: [`docs/pipeline.md`](docs/pipeline.md) ·
 UI/auth plan and what was built: [`docs/plan-ui-and-auth.md`](docs/plan-ui-and-auth.md) ·
@@ -22,12 +24,13 @@ cp .env.example .env        # then fill in the passwords (see the comments insid
 docker compose up -d --build
 ```
 
-Set at least `MQTT_PASSWORD`, `MQTT_CLIENT_PASSWORD`, `DATABASE_URL`, and
+Set at least `MQTT_HOST`, `MQTT_PASSWORD`, `DATABASE_URL`, and
 `ADMIN_USERNAME` / `ADMIN_PASSWORD` (12+ characters). `DATABASE_URL` points at
 a Postgres you provide (one-time role/database setup in
 [`docs/database.md`](docs/database.md)), or at the bundled container via the
-`local-db` compose profile. The
-first start creates that administrator; sign in at `http://<host>:8000`. After
+`local-db` compose profile. `MQTT_HOST` is likewise a broker you provide
+([`docs/mqtt-broker.md`](docs/mqtt-broker.md)) or the bundled one via
+`local-mqtt`. The first start creates that administrator; sign in at `http://<host>:8000`. After
 that the two `ADMIN_*` values are ignored and can be removed.
 
 Live configuration (adapters, cards, pixels, encrypted secrets) lives outside
@@ -73,7 +76,7 @@ frontend/       React app (Vite, TypeScript, Tailwind, shadcn/ui)
 e2e/            Browser tests (Puppeteer + axe-core, run in Docker)
 tests/          pytest suite
 schema/         JSON Schema for the MQTT payloads (regenerate: scripts/export_schema.py)
-mosquitto/      Broker config;  postgres/  first-boot role creation (bundled DB only)
+mosquitto/      Bundled broker config (local-mqtt only);  postgres/  role creation (local-db only)
 docs/           Longer-form docs and plans
 ```
 

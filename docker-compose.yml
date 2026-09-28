@@ -27,7 +27,10 @@ services:
     # config, encrypted secrets — see app/config.py, app/secret_store.py).
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
-      MQTT_HOST: ${MQTT_HOST:-mosquitto}
+      # Normally the central broker; the bundled `mosquitto` service below
+      # is opt-in (COMPOSE_PROFILES=local-mqtt, MQTT_HOST=mosquitto). See
+      # docs/mqtt-broker.md for the accounts and ACLs either way.
+      MQTT_HOST: ${MQTT_HOST:?set in .env}
       MQTT_PORT: ${MQTT_PORT:-1883}
       MQTT_USERNAME: ${MQTT_USERNAME:-aggregator}
       MQTT_PASSWORD: ${MQTT_PASSWORD:?set in .env}
@@ -77,7 +80,10 @@ services:
       # LAN the way it was before auth landed.
       - /opt/desk-dashboard-data/config:/app/config
     depends_on:
-      - mosquitto
+      # Only when the bundled broker is in use; ignored otherwise.
+      mosquitto:
+        condition: service_started
+        required: false
     restart: unless-stopped
 
   # Optional bundled database, for a host without a central Postgres:
@@ -107,14 +113,18 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # Optional bundled broker, for a host without a central one: set
+  # COMPOSE_PROFILES=local-mqtt and MQTT_HOST=mosquitto in .env. Without the
+  # profile it isn't started.
   mosquitto:
     image: eclipse-mosquitto:2
+    profiles: ["local-mqtt"]
     entrypoint: ["/bin/sh", "/mosquitto-entrypoint.sh"]
     environment:
       MQTT_USERNAME: ${MQTT_USERNAME:-aggregator}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:?set in .env}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
       MQTT_CLIENT_USERNAME: ${MQTT_CLIENT_USERNAME:-esp32-client}
-      MQTT_CLIENT_PASSWORD: ${MQTT_CLIENT_PASSWORD:?set in .env}
+      MQTT_CLIENT_PASSWORD: ${MQTT_CLIENT_PASSWORD:-}
     ports:
       - "1883:1883"
     volumes:
