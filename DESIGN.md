@@ -728,6 +728,12 @@ the ESP32 client needs to reach both from elsewhere on the network.
     per account and per IP; logins and every state-changing call are recorded
     in `audit_log` (request bodies are never logged, only a few safe keys).
   - Postgres being down never stops polling/MQTT publishing — only login.
+    Likewise the MQTT broker being down never stops the app, even at
+    startup (since 2026-09-28; before that, an unreachable broker made
+    startup fail). The app starts, the UI stays up, publishing retries at
+    most every 5 s, and each outage is logged once. That matters because
+    the broker can be changed from the UI: an app that crash-looped
+    without its broker would take down the page you'd fix it from.
   - **Admins can re-point the broker and the database from the UI**
     (Connections page, since 2026-09-28; `app/connections.py`). `.env` is
     only the first-start bootstrap. A saved section in
