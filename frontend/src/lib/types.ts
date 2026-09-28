@@ -244,3 +244,46 @@ export interface PreviewActionStateResponse {
   state: string | null
   error: string | null
 }
+
+/** GET /api/connections. Passwords are never sent, only whether one is set. */
+export interface ConnectionsResponse {
+  mqtt: {
+    source: 'app' | 'env'
+    host: string
+    port: number
+    username: string | null
+    password_set: boolean
+    connected: boolean
+  }
+  database: {
+    source: 'app' | 'env'
+    configured: boolean
+    host: string | null
+    port: number | null
+    database: string | null
+    username: string | null
+    password_set: boolean
+    available: boolean
+  }
+  /** False until SECRETS_MASTER_KEY is set: there'd be nowhere to keep a password. */
+  can_save: boolean
+}
+export interface MqttTestResult {
+  ok: boolean
+  error: string | null
+}
+export type DatabaseSaveMode = 'use' | 'copy' | 'fresh'
+/** POST /api/connections/database/test (app.connections.DatabaseReport). */
+export interface DatabaseReport {
+  connected: boolean
+  error: string | null
+  server_version: string | null
+  schema: 'none' | 'current' | 'upgrade' | 'unknown' | 'foreign' | null
+  can_create_tables: boolean
+  user_count: number
+  admins: string[]
+  same_as_current: boolean
+  /** What a save may do; empty = it can't be saved (see problems). */
+  modes: DatabaseSaveMode[]
+  problems: string[]
+}

@@ -8,6 +8,7 @@ by default (tests/test_auth_coverage.py enforces that nothing is left open):
 - previews: any logged-in user (they render, never save)
 - adapters: admins only, even reads — they expose internal hosts/usernames
 - system (restart): admins only
+- connections (MQTT broker / database): admins only
 - users / audit log: admins only
 - auth: login is public; the rest of it requires a session
 """
@@ -15,7 +16,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.api import actions, adapters, auth, cards, overview, pixels, status, system, users
+from app.api import actions, adapters, auth, cards, connections, overview, pixels, status, system, users
 from app.auth.deps import audit_writes, require_admin, require_admin_for_writes, require_user
 
 router = APIRouter(prefix="/api")
@@ -34,6 +35,7 @@ router.include_router(pixels.preview_router, dependencies=[Depends(require_user)
 _admin = [Depends(require_admin), Depends(audit_writes)]
 router.include_router(adapters.router, dependencies=_admin)
 router.include_router(system.router, dependencies=_admin)
+router.include_router(connections.router, dependencies=_admin)
 
 # users.py records its own, more specific audit entries.
 router.include_router(users.router, dependencies=[Depends(require_admin)])

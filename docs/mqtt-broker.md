@@ -61,6 +61,14 @@ MQTT_USERNAME=aggregator
 MQTT_PASSWORD=<password>
 ```
 
+After the first start, an administrator can change the app's broker on the
+web UI's **Connections** page instead. It tests the connection and login
+before it saves anything, then restarts the app. The broker's topic ACLs
+can't be tested: Mosquitto silently drops a publish the account isn't
+allowed. The setting is kept in `config/connections.yaml` and overrides the
+`MQTT_*` values in `.env`, with the password stored in the encrypted
+`secrets.enc.yaml`. Delete that section and restart to go back to `.env`.
+
 The ESP32 gets the same host and port, and the `esp32-client` login, in its
 `include/secrets.h` (desk-dashboard-esp32) — a reflash, since the broker
 address is compiled in.

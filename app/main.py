@@ -22,6 +22,7 @@ from app.adapters import ADAPTER_REGISTRY  # noqa: F401 - ensures adapters regis
 from app.aggregator import Aggregator
 from app.api import router as api_router
 from app.config import load_adapters, load_cards
+from app.connections import apply_saved_connections
 from app.db import Database
 from app.auth.bootstrap import bootstrap_admin
 from app.auth.retention import prune_audit_log
@@ -37,6 +38,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # First: the broker/database saved in the UI replace .env's values.
+    app.state.connection_sources = apply_saved_connections(settings)
     http_client = httpx.AsyncClient()
     publisher = MqttPublisher()
     await publisher.connect()

@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     # key is the one secret still held unencrypted; see .env.example.
     secrets_config_path: str = "config/secrets.enc.yaml"
     secrets_master_key: str | None = None
+    # MQTT broker / database set from the web UI's Connections page; they
+    # replace the MQTT_* / DATABASE_URL values above (app/connections.py).
+    connections_config_path: str = "config/connections.yaml"
 
     # Frigate snapshot proxy (see DESIGN.md "Camera / Frigate integration").
     # Landscape (320x240) to match the ESP32 client's CAMERA screen, which

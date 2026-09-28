@@ -728,6 +728,21 @@ the ESP32 client needs to reach both from elsewhere on the network.
     per account and per IP; logins and every state-changing call are recorded
     in `audit_log` (request bodies are never logged, only a few safe keys).
   - Postgres being down never stops polling/MQTT publishing — only login.
+  - **Admins can re-point the broker and the database from the UI**
+    (Connections page, since 2026-09-28; `app/connections.py`). `.env` is
+    only the first-start bootstrap. A saved section in
+    `config/connections.yaml` overrides it. Because signing in needs the
+    database, a database change is gated on proof that someone can still
+    sign in afterwards. The target must be either this app's own database
+    with an active admin, or empty, in which case users, sessions and the
+    audit log are copied over with their ids, so the current session
+    survives. The server re-runs that check on save, not just on "Test". If
+    a saved database later dies, the recovery path is to delete its section
+    from the file (see `docs/database.md`), since the UI is unreachable. A
+    blank password field in these forms reuses the running password,
+    matching the adapter forms: an admin could point it at a host they
+    control and capture it. That's accepted, because admins already hold
+    every other credential in the app.
   - **The ESP32 needs no credentials**: camera-alert `snapshot_url`s carry an
     HMAC signature and expiry (`app/signing.py`), which `/snapshot/*` accepts
     in place of a session. Links must fit the firmware's 160-char URL buffer
