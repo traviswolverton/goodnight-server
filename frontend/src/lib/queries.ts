@@ -10,6 +10,7 @@ import type {
   MqttReference,
   Overview,
   PixelsResponse,
+  SettingsResponse,
   StatusPayload,
 } from '@/lib/types'
 import type { User } from '@/lib/auth'
@@ -89,4 +90,9 @@ export const connectionsQuery = queryOptions({
   queryKey: ['connections'],
   queryFn: () => api<ConnectionsResponse>('/api/connections'),
   refetchInterval: 15_000, // live connected / available
+})
+
+export const settingsQuery = queryOptions({
+  queryKey: ['settings'],
+  queryFn: () => api<SettingsResponse>('/api/settings'),
 })

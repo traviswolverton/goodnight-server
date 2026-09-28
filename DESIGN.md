@@ -743,6 +743,19 @@ the ESP32 client needs to reach both from elsewhere on the network.
     matching the adapter forms: an admin could point it at a host they
     control and capture it. That's accepted, because admins already hold
     every other credential in the app.
+  - **The Settings page** (`app/app_settings.py`, since 2026-09-28) covers
+    the rest of `.env` that's safe to change live. Every one of those
+    values is read where it's used, not copied at startup, so a save
+    applies at once with no restart. Two guards stop it from locking
+    anyone out:
+    - `HTTPS_ONLY` can only be turned on from a request that arrived over
+      HTTPS, directly or through a trusted proxy's `X-Forwarded-Proto`.
+      Turning it on over plain HTTP would make the session cookie
+      `Secure`, and the browser would never send it back over HTTP.
+    - Flipping `HTTPS_ONLY` renames the session cookie, so the save
+      re-issues the current session under the new name.
+
+    The module docstring lists what's deliberately left out.
   - **The display gets its broker from the server** (`GET /device/config`,
     since 2026-09-28), so it can move brokers without a reflash. It
     authenticates with a device token: a 256-bit random value, stored

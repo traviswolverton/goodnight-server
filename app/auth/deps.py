@@ -59,6 +59,18 @@ def client_ip(request: Request) -> str | None:
     return peer
 
 
+def request_is_https(request: Request) -> bool:
+    """Whether the browser reached us over HTTPS: directly, or through a
+    trusted proxy that says so in X-Forwarded-Proto (anyone else's header
+    is ignored, like X-Forwarded-For in client_ip)."""
+    if request.url.scheme == "https":
+        return True
+    peer = request.client.host if request.client else None
+    trusted = {p.strip() for p in settings.trusted_proxies.split(",") if p.strip()}
+    forwarded = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    return bool(peer and peer in trusted and forwarded == "https")
+
+
 def _database(request: Request):
     return getattr(request.app.state, "database", None)
 

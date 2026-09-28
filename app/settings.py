@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     # MQTT broker / database set from the web UI's Connections page; they
     # replace the MQTT_* / DATABASE_URL values above (app/connections.py).
     connections_config_path: str = "config/connections.yaml"
+    # Settings changed on the web UI's Settings page, laid over the values
+    # here (app/app_settings.py).
+    app_settings_path: str = "config/settings.yaml"
 
     # Frigate snapshot proxy (see DESIGN.md "Camera / Frigate integration").
     # Landscape (320x240) to match the ESP32 client's CAMERA screen, which

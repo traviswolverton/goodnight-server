@@ -299,3 +299,31 @@ export interface DatabaseReport {
   modes: DatabaseSaveMode[]
   problems: string[]
 }
+
+/** One row of GET /api/settings (app/app_settings.py). */
+export interface SettingField {
+  key: string
+  label: string
+  group: string
+  help: string
+  kind: 'number' | 'integer' | 'boolean' | 'text' | 'select'
+  minimum: number | null
+  maximum: number | null
+  unit: string | null
+  options: string[]
+  placeholder: string | null
+  value: string | number | boolean | null
+  /** What a reset goes back to (.env or the built-in default). */
+  baseline: string | number | boolean | null
+  source: 'app' | 'env' | 'default'
+}
+export interface SettingsResponse {
+  fields: SettingField[]
+  /** HTTPS only can be turned on only from an HTTPS page. */
+  request_is_https: boolean
+}
+export interface OllamaTestResult {
+  ok: boolean
+  error: string | null
+  models: string[]
+}

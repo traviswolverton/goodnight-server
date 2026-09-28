@@ -1,8 +1,8 @@
-import { Cable, LayoutDashboard, Network, Radio, Rows3, Sparkles, ToggleRight, Users, type LucideIcon } from 'lucide-react'
+import { Cable, LayoutDashboard, Network, Radio, Rows3, Settings2, Sparkles, ToggleRight, Users, type LucideIcon } from 'lucide-react'
 import type { Role } from '@/lib/auth'
 
 export interface NavItem {
-  to: '/' | '/cards' | '/pixels' | '/actions' | '/adapters' | '/connections' | '/users' | '/mqtt'
+  to: '/' | '/cards' | '/pixels' | '/actions' | '/adapters' | '/connections' | '/settings' | '/users' | '/mqtt'
   label: string
   icon: LucideIcon
   adminOnly?: boolean
@@ -15,6 +15,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/actions', label: 'Actions', icon: ToggleRight },
   { to: '/adapters', label: 'Adapters', icon: Cable, adminOnly: true },
   { to: '/connections', label: 'Connections', icon: Network, adminOnly: true },
+  { to: '/settings', label: 'Settings', icon: Settings2, adminOnly: true },
   { to: '/users', label: 'Users', icon: Users, adminOnly: true },
   { to: '/mqtt', label: 'MQTT reference', icon: Radio },
 ]
