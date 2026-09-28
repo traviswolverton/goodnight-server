@@ -12,10 +12,15 @@ this document is inherited and still describes the desk unit's display
 (320×240 color LCD, rotary encoder, 5 LEDs, camera snapshots). What differs
 here so far:
 
-- **Separate stack.** Own Postgres (`bedside_dashboard`), own Mosquitto,
-  own config dir (`/opt/bedside-dashboard-data/config`). Web UI on host port
-  8001, broker on 1884 (1883 inside the stack) — so it runs beside the desk
-  stack on the same host. Every topic is `bedside/*` instead of `homelab/*`.
+- **Separate app, shared infrastructure.** Its own database
+  (`bedside_dashboard`, on the central Postgres by default) and config dir
+  (`/opt/bedside-dashboard-data/config`), web UI on host port 8001 so it
+  runs beside the desk stack. Both use the central MQTT broker
+  (192.0.2.25) with separate accounts — `bedside-aggregator` /
+  `bedside-esp32` here — whose ACLs keep each to its own topics
+  (`docs/mqtt-broker.md`). Every topic is `bedside/*` instead of
+  `homelab/*`. Bundled Postgres/Mosquitto remain as the `local-db` /
+  `local-mqtt` compose profiles.
 - **The device's hardware is a first-class thing** (`app/device.py`), not
   just a renderer: it reports sensors and presses, and takes settings.
 
@@ -34,9 +39,9 @@ here so far:
   retained under `homeassistant/`, three sensors (temperature, humidity,
   illuminance) and a device trigger per button and press length. The
   sensors read the device's own topic, so they don't depend on the server
-  staying up. HA has to read this broker — either its MQTT integration
-  points here (optional `homeassistant` account, `MQTT_HA_PASSWORD`), or a
-  bridge from HA's broker. Device-trigger payloads must match the firmware's
+  staying up. HA already reads the central broker, so nothing else is
+  needed; the server's account may only write this device's discovery
+  topics, never another HA entity's. Device-trigger payloads must match the firmware's
   `publishButton()` byte for byte (tests/test_device.py checks).
 - **Sensors in templates.** The `bedside_device` adapter reads the latest
   report: `{{ adapters.<name>.temperature_c }}`, `temperature_f`,
@@ -155,8 +160,15 @@ publishes to:
   an alert-worthy event; carries a reference/URL to the triggering snapshot.
   The ESP32 client jumps straight to a camera pop-up view on receipt.
 
-Use a **dedicated Mosquitto broker** for this project — do not reuse Home
-Assistant's broker, even though HA runs one.
+**Broker: the central one (since 2026-09-28).** This project originally
+ran its own dedicated Mosquitto and kept off Home Assistant's. It now
+publishes to the homelab's central broker (192.0.2.25), shared with Home
+Assistant and other projects — one broker to run, and HA can see these
+topics directly. What the dedicated broker gave us is kept with ACLs
+instead: each account can touch only its own `homelab/*` topics, so nothing
+else on the broker can change what the display shows, and the display's
+login can do nothing else there (`docs/mqtt-broker.md`). The bundled
+broker remains as the `local-mqtt` compose profile.
 
 ## Pixels: the 5 physical LEDs, with NO relationship to Cards
 This went through two earlier designs before landing here (2026-09-19,
@@ -228,12 +240,13 @@ the encoder picks one and pressing sends its `id` on `bedside/action`.
 This server looks the id up in `config/actions.yaml`, performs it, and
 replies on `bedside/action/result`.
 
-**Architecture, and why:** device → dedicated broker → this server →
-Home Assistant's REST API. The more HA-native options were considered and
+**Architecture, and why:** device → broker → this server → Home
+Assistant's REST API. The more HA-native options were considered and
 rejected: ESPHome's native API needs ESPHome firmware (this is custom
-PlatformIO code), and MQTT discovery on Home Assistant's own broker would
-break the "dedicated broker, never HA's" rule above and put a second set
-of credentials on the device. As built, the display never holds a Home
+PlatformIO code), and MQTT discovery would (at the time) have meant a
+second set of credentials on the device for HA's own broker. The broker is
+now the shared central one (see "Transport"), but the reasoning below still
+holds: the display talks only to this server's topics. As built, the display never holds a Home
 Assistant credential and can only trigger actions already listed on the
 server — a stolen `esp32-client` login can press the same buttons the
 desk can, nothing more. (Mosquitto's ACL gives `esp32-client` write
@@ -738,9 +751,13 @@ by anything on the LAN, not just `localhost`. Confirmed 2026-09-16 by
 curling the host's actual LAN IP successfully. Deliberate, not accidental:
 the ESP32 client needs to reach both from elsewhere on the network.
 
-- **MQTT is protected** — password auth (`mosquitto/config/mosquitto.conf`)
-  plus per-account topic ACLs (`mosquitto/config/acl.conf`): `aggregator`
-  write-only, `esp32-client` read-only. Verified end-to-end.
+- **MQTT is protected** — password auth plus per-account topic ACLs:
+  `aggregator` write-only, `esp32-client` read-only (each with one Actions
+  topic the other way). Since 2026-09-28 the broker is normally the central
+  one, where those accounts and ACLs are set up by hand
+  (`docs/mqtt-broker.md`); the bundled broker (`local-mqtt` profile) applies
+  the same rules from `mosquitto/config/`. Verified end-to-end on the
+  bundled broker.
 - **The HTTP API and web UI require a login** (since 2026-09-21; see
   `docs/plan-ui-and-auth.md` and `app/auth/`). Everything is default-deny —
   `tests/test_auth_coverage.py` fails if a route is neither protected nor on
@@ -833,7 +850,7 @@ the ESP32 client needs to reach both from elsewhere on the network.
   write-only and `esp32-client` to read-only on both topics. Verified
   end-to-end: anonymous/bad-password connections refused, and a write from
   `esp32-client` is silently dropped by the ACL rather than reaching the
-  topic. TLS was deliberately skipped — LAN-only dedicated broker; revisit
+  topic. TLS was deliberately skipped — LAN-only broker; revisit
   if it's ever exposed beyond the LAN. **Changed 2026-09-26 for Actions:**
   each account now has exactly one topic in the other direction —
   `esp32-client` writes `bedside/action` and reads

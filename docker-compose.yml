@@ -27,9 +27,12 @@ services:
     # config, encrypted secrets — see app/config.py, app/secret_store.py).
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
-      MQTT_HOST: ${MQTT_HOST:-mosquitto}
+      # Normally the central broker; the bundled `mosquitto` service below
+      # is opt-in (COMPOSE_PROFILES=local-mqtt, MQTT_HOST=mosquitto). See
+      # docs/mqtt-broker.md for the accounts and ACLs either way.
+      MQTT_HOST: ${MQTT_HOST:?set in .env}
       MQTT_PORT: ${MQTT_PORT:-1883}
-      MQTT_USERNAME: ${MQTT_USERNAME:-aggregator}
+      MQTT_USERNAME: ${MQTT_USERNAME:-bedside-aggregator}
       MQTT_PASSWORD: ${MQTT_PASSWORD:?set in .env}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-15}
       HEARTBEAT_INTERVAL_SECONDS: ${HEARTBEAT_INTERVAL_SECONDS:-45}
@@ -42,12 +45,14 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-365}
       APP_VERSION: ${APP_VERSION:-dev}
-      # Postgres (users/sessions/audit — see app/db.py). The app connects
-      # as its own non-superuser role (created by postgres/initdb.sh).
-      # Deliberately NOT in depends_on below: the aggregator and MQTT loop
-      # must keep running if the database is down; the app retries the
-      # connection in the background.
-      DATABASE_URL: postgresql+asyncpg://bedside_dashboard:${DB_PASSWORD:?set in .env}@postgres:5432/bedside_dashboard
+      # Postgres (users/sessions/audit — see app/db.py), normally an
+      # external/central server; the bundled `postgres` service below is
+      # opt-in (COMPOSE_PROFILES=local-db). Either way the app connects as
+      # its own non-superuser role that owns its database — see
+      # docs/database.md. Deliberately NOT in depends_on below: the
+      # aggregator and MQTT loop must keep running if the database is down;
+      # the app retries the connection in the background.
+      DATABASE_URL: ${DATABASE_URL:?set in .env}
       # Authentication (see app/auth/, docs/plan-ui-and-auth.md). The admin
       # pair only creates the first user, on an empty users table.
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
@@ -77,18 +82,25 @@ services:
       # LAN the way it was before auth landed.
       - /opt/bedside-dashboard-data/config:/app/config
     depends_on:
-      - mosquitto
+      # Only when the bundled broker is in use; ignored otherwise.
+      mosquitto:
+        condition: service_started
+        required: false
     restart: unless-stopped
 
+  # Optional bundled database, for a host without a central Postgres:
+  # set COMPOSE_PROFILES=local-db in .env and point DATABASE_URL at
+  # @postgres:5432 (see .env.example). Without the profile it isn't started.
   postgres:
     image: postgres:18-alpine
+    profiles: ["local-db"]
     environment:
       # Bootstrap superuser: used only by the one-time init script and
       # admin work (`docker compose exec postgres psql -U postgres`). The
       # app never connects as this user.
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
-      APP_DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      APP_DB_PASSWORD: ${DB_PASSWORD:-}
     volumes:
       # Postgres 18+ images keep the data in a version-specific subdirectory
       # under /var/lib/postgresql, so the volume mounts there — NOT at
@@ -103,21 +115,21 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # Optional bundled broker, for a host without a central one: set
+  # COMPOSE_PROFILES=local-mqtt and MQTT_HOST=mosquitto in .env. Without the
+  # profile it isn't started.
   mosquitto:
     image: eclipse-mosquitto:2
+    profiles: ["local-mqtt"]
     entrypoint: ["/bin/sh", "/mosquitto-entrypoint.sh"]
     environment:
-      MQTT_USERNAME: ${MQTT_USERNAME:-aggregator}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:?set in .env}
+      MQTT_USERNAME: ${MQTT_USERNAME:-bedside-aggregator}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
       MQTT_CLIENT_USERNAME: ${MQTT_CLIENT_USERNAME:-bedside-esp32}
-      MQTT_CLIENT_PASSWORD: ${MQTT_CLIENT_PASSWORD:?set in .env}
-      # Optional third account for Home Assistant (see acl.conf). Leave the
-      # password blank and no such account exists.
-      MQTT_HA_USERNAME: ${MQTT_HA_USERNAME:-homeassistant}
-      MQTT_HA_PASSWORD: ${MQTT_HA_PASSWORD:-}
+      MQTT_CLIENT_PASSWORD: ${MQTT_CLIENT_PASSWORD:-}
     ports:
-      # 1884 on the host: the desk dashboard's broker already has 1883.
-      # Inside the stack it's still 1883.
+      # 1884 on the host by default, so it can't clash with another broker
+      # on 1883 there. Inside the stack it's still 1883.
       - "${MQTT_PUBLISH_PORT:-1884}:1883"
     volumes:
       - ./mosquitto/config:/mosquitto/config

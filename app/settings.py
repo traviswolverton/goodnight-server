@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     mqtt_host: str = "localhost"
     mqtt_port: int = 1883
     # Must match a user in mosquitto/config/acl.conf — see .env.example.
-    mqtt_username: str = "aggregator"
+    mqtt_username: str = "bedside-aggregator"
     mqtt_password: str | None = None
     mqtt_status_topic: str = "bedside/status"
     mqtt_camera_alert_topic: str = "bedside/alert/camera"
