@@ -59,6 +59,18 @@ def client_ip(request: Request) -> str | None:
     return peer
 
 
+def request_is_https(request: Request) -> bool:
+    """Whether the browser reached us over HTTPS: directly, or through a
+    trusted proxy that says so in X-Forwarded-Proto (anyone else's header
+    is ignored, like X-Forwarded-For in client_ip)."""
+    if request.url.scheme == "https":
+        return True
+    peer = request.client.host if request.client else None
+    trusted = {p.strip() for p in settings.trusted_proxies.split(",") if p.strip()}
+    forwarded = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    return bool(peer and peer in trusted and forwarded == "https")
+
+
 def _database(request: Request):
     return getattr(request.app.state, "database", None)
 
@@ -137,6 +149,20 @@ async def audit_writes(request: Request, ctx: AuthContext = Depends(current_user
         session.add(AuditLog(action=action[:64], user_id=ctx.user_id, username=ctx.username,
                              target=target, ip=client_ip(request), detail=detail or None))
         await session.commit()
+
+
+async def device_access(request: Request) -> None:
+    """GET /device/config: the desk display's device token, sent as
+    `Authorization: Bearer <token>` (a header, so it never lands in an
+    access log the way a query string would). The display has no session
+    and no user account; this token is all it has."""
+    from app.connections import device_token_valid   # local: keeps auth free of connections at import
+
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not device_token_valid(settings.connections_config_path, token.strip()):
+        logger.warning("rejected a device config request from %s: missing or wrong device token",
+                       client_ip(request))
+        raise HTTPException(status_code=401, detail="missing or invalid device token")
 
 
 async def snapshot_access(request: Request, camera: str, event: str | None = None,

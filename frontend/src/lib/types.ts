@@ -289,3 +289,86 @@ export interface DeviceResponse {
   num_buttons: number
   ha_discovery: boolean
 }
+
+/** GET /api/connections. Passwords are never sent, only whether one is set. */
+export interface ConnectionsResponse {
+  mqtt: {
+    source: 'app' | 'env'
+    host: string
+    port: number
+    username: string | null
+    password_set: boolean
+    connected: boolean
+  }
+  database: {
+    source: 'app' | 'env'
+    configured: boolean
+    host: string | null
+    port: number | null
+    database: string | null
+    username: string | null
+    password_set: boolean
+    available: boolean
+  }
+  /** The broker the bedside device is handed by GET /device/config. */
+  display: {
+    /** none = no account for the device anywhere yet. */
+    source: 'app' | 'env' | 'none'
+    host: string | null
+    port: number | null
+    username: string | null
+    password_set: boolean
+    token_set: boolean
+    /** Its last GET /device/config since the app started (unix seconds). */
+    last_seen: { ts: number; ip: string | null } | null
+  }
+  /** False until SECRETS_MASTER_KEY is set: there'd be nowhere to keep a password. */
+  can_save: boolean
+}
+export interface MqttTestResult {
+  ok: boolean
+  error: string | null
+}
+export type DatabaseSaveMode = 'use' | 'copy' | 'fresh'
+/** POST /api/connections/database/test (app.connections.DatabaseReport). */
+export interface DatabaseReport {
+  connected: boolean
+  error: string | null
+  server_version: string | null
+  schema: 'none' | 'current' | 'upgrade' | 'unknown' | 'foreign' | null
+  can_create_tables: boolean
+  user_count: number
+  admins: string[]
+  same_as_current: boolean
+  /** What a save may do; empty = it can't be saved (see problems). */
+  modes: DatabaseSaveMode[]
+  problems: string[]
+}
+
+/** One row of GET /api/settings (app/app_settings.py). */
+export interface SettingField {
+  key: string
+  label: string
+  group: string
+  help: string
+  kind: 'number' | 'integer' | 'boolean' | 'text' | 'select'
+  minimum: number | null
+  maximum: number | null
+  unit: string | null
+  options: string[]
+  placeholder: string | null
+  value: string | number | boolean | null
+  /** What a reset goes back to (.env or the built-in default). */
+  baseline: string | number | boolean | null
+  source: 'app' | 'env' | 'default'
+}
+export interface SettingsResponse {
+  fields: SettingField[]
+  /** HTTPS only can be turned on only from an HTTPS page. */
+  request_is_https: boolean
+}
+export interface OllamaTestResult {
+  ok: boolean
+  error: string | null
+  models: string[]
+}

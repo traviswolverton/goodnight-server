@@ -37,6 +37,7 @@ import aiomqtt
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
+from app.mqtt import CONNECT_TIMEOUT_SECONDS
 from app.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -249,14 +250,17 @@ class MqttDeviceLink:
         self._tasks: set[asyncio.Task] = set()
 
     async def run_forever(self) -> None:
+        last_error: str | None = None
         while True:
             try:
                 async with aiomqtt.Client(
                     hostname=settings.mqtt_host, port=settings.mqtt_port,
                     username=settings.mqtt_username, password=settings.mqtt_password,
+                    timeout=CONNECT_TIMEOUT_SECONDS,
                 ) as client:
                     self._client = client
                     self.state.link_connected = True
+                    last_error = None
                     for topic in (settings.mqtt_sensors_topic, settings.mqtt_availability_topic,
                                   settings.mqtt_button_topic):
                         await client.subscribe(topic, qos=1)
@@ -266,8 +270,12 @@ class MqttDeviceLink:
                     async for message in client.messages:
                         self._spawn(self.handle(str(message.topic), message.payload))
             except aiomqtt.MqttError as exc:
-                logger.warning("device link lost the broker (%s), retrying in %ss",
-                               exc, LINK_RETRY_SECONDS)
+                # Once per outage (or change of error), not every retry —
+                # like app/mqtt.py.
+                if str(exc) != last_error:
+                    logger.warning("device link lost the broker (%s), retrying every %ss",
+                                   exc, LINK_RETRY_SECONDS)
+                last_error = str(exc)
             finally:
                 self._client = None
                 self.state.link_connected = False

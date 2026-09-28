@@ -4,8 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # extra="ignore": .env legitimately carries vars this class doesn't
-    # declare — MQTT_CLIENT_USERNAME/PASSWORD and
-    # APP_PORT (consumed by docker-compose.yml's own substitution, never
+    # declare — APP_PORT (consumed by docker-compose.yml's own substitution, never
     # read by the Python process at all). Without this, pydantic-settings
     # defaults to extra="forbid" and raises a ValidationError that embeds
     # the actual offending values in its message — which is exactly how a
@@ -21,6 +20,11 @@ class Settings(BaseSettings):
     # Must match a user in mosquitto/config/acl.conf — see .env.example.
     mqtt_username: str = "bedside-aggregator"
     mqtt_password: str | None = None
+    # The bedside device's own account (bedside-esp32). Handed to the device
+    # by GET /device/config until one is saved on the Connections page;
+    # also what the bundled broker provisions (mosquitto/entrypoint.sh).
+    mqtt_client_username: str | None = None
+    mqtt_client_password: str | None = None
     mqtt_status_topic: str = "bedside/status"
     mqtt_camera_alert_topic: str = "bedside/alert/camera"
     # Actions (app/actions.py): the display publishes to the first, this
@@ -91,6 +95,12 @@ class Settings(BaseSettings):
     # key is the one secret still held unencrypted; see .env.example.
     secrets_config_path: str = "config/secrets.enc.yaml"
     secrets_master_key: str | None = None
+    # MQTT broker / database set from the web UI's Connections page; they
+    # replace the MQTT_* / DATABASE_URL values above (app/connections.py).
+    connections_config_path: str = "config/connections.yaml"
+    # Settings changed on the web UI's Settings page, laid over the values
+    # here (app/app_settings.py).
+    app_settings_path: str = "config/settings.yaml"
 
     # Frigate snapshot proxy (see DESIGN.md "Camera / Frigate integration").
     # Landscape (320x240) to match the ESP32 client's CAMERA screen, which

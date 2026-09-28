@@ -25,6 +25,6 @@ describe('isServerPath', () => {
 describe('navFor', () => {
   it('hides admin-only sections from viewers', () => {
     expect(navFor('viewer').map((i) => i.label)).toEqual(['Home', 'Device', 'Cards', 'Pixels', 'Actions', 'MQTT reference'])
-    expect(navFor('admin').map((i) => i.label)).toEqual(['Home', 'Device', 'Cards', 'Pixels', 'Actions', 'Adapters', 'Users', 'MQTT reference'])
+    expect(navFor('admin').map((i) => i.label)).toEqual(['Home', 'Device', 'Cards', 'Pixels', 'Actions', 'Adapters', 'Connections', 'Settings', 'Users', 'MQTT reference'])
   })
 })

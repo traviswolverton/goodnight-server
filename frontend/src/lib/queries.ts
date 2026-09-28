@@ -6,10 +6,12 @@ import type {
   AdapterType,
   AuditEntry,
   CardsResponse,
+  ConnectionsResponse,
   DeviceResponse,
   MqttReference,
   Overview,
   PixelsResponse,
+  SettingsResponse,
   StatusPayload,
 } from '@/lib/types'
 import type { User } from '@/lib/auth'
@@ -89,4 +91,15 @@ export const auditQuery = queryOptions({
 export const mqttReferenceQuery = queryOptions({
   queryKey: ['mqtt-reference'],
   queryFn: () => api<MqttReference>('/api/mqtt-reference'),
+})
+
+export const connectionsQuery = queryOptions({
+  queryKey: ['connections'],
+  queryFn: () => api<ConnectionsResponse>('/api/connections'),
+  refetchInterval: 15_000, // live connected / available
+})
+
+export const settingsQuery = queryOptions({
+  queryKey: ['settings'],
+  queryFn: () => api<SettingsResponse>('/api/settings'),
 })

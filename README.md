@@ -37,7 +37,14 @@ a Postgres you provide (one-time role/database setup in
 `local-mqtt`. The first start creates that administrator; sign in at `http://<host>:8001`. After
 that the two `ADMIN_*` values are ignored and can be removed.
 
-Live configuration (adapters, cards, pixels, encrypted secrets) lives outside
+After the first start, the broker and database can be changed on the web UI's
+**Connections** page. Each change is tested before it's saved, and the saved
+values override `.env` (`config/connections.yaml`). The rest of the tunable
+values are on the **Settings** page. These are polling, snapshots, sessions,
+HTTPS and proxies, audit retention, Ollama, and log level. They take effect
+immediately on save, with no restart (`config/settings.yaml`).
+
+Live configuration (adapters, cards, pixels, device, connections, settings, encrypted secrets) lives outside
 the repo in `/opt/bedside-dashboard-data/config` and is edited through the web UI;
 `config.example/` shows the file formats.
 

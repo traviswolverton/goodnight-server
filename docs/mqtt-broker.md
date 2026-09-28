@@ -76,8 +76,42 @@ MQTT_USERNAME=bedside-aggregator
 MQTT_PASSWORD=<password>
 ```
 
-The device gets the same host and port and the `bedside-esp32` login in
-bedside-dashboard-esp32's `include/secrets.h`.
+After the first start, an administrator can change the app's broker on the
+web UI's **Connections** page instead. It tests the connection and login
+before it saves anything, then restarts the app. The broker's topic ACLs
+can't be tested: Mosquitto silently drops a publish the account isn't
+allowed. The setting is kept in `config/connections.yaml` and overrides the
+`MQTT_*` values in `.env`, with the password stored in the encrypted
+`secrets.enc.yaml`. Delete that section and restart to go back to `.env`.
+
+## The device's broker
+
+The bedside device (ESP32) asks this app which broker to use and how to
+sign in, with `GET /device/config`. It asks at boot, every 15 minutes, and
+after repeated failed connects, and it keeps the answer in flash. So moving
+it to another broker is a change on the **Connections** page (Bedside
+device → Change), which tests the `bedside-esp32` login before saving. It
+needs no reflash and no app restart.
+
+Set up once:
+
+1. On the Connections page, set the device's broker and account. Until
+   one is saved there, the device is handed this app's broker with
+   `MQTT_CLIENT_USERNAME`/`MQTT_CLIENT_PASSWORD` from `.env`.
+2. Under **Device token**, make a token, then put the two lines it shows
+   (`SERVER_URL`, `DEVICE_TOKEN`) in bedside-dashboard-esp32's
+   `include/secrets.h` and flash it once. From the shell instead:
+   `docker compose exec app python -m app.connections new-device-token`.
+
+The request is plain HTTP on the LAN, with the token in an `Authorization`
+header, so it stays out of access logs. That's the same exposure as MQTT
+itself, which sends this password in the clear. Only the token's hash is
+stored. Making a new token cuts off the old one at once.
+
+The firmware only keeps a fetched change once it has connected with it.
+A change that can't connect is rolled back after 5 tries, so a mistake on
+the server can't strand the device. Firmware without `SERVER_URL`/
+`DEVICE_TOKEN` keeps using its compiled-in `MQTT_*` values, as before.
 
 ## Bundled broker
 

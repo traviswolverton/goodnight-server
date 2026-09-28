@@ -118,6 +118,20 @@ const adaptersRoute = createRoute({
   component: lazyRouteComponent(() => import('@/routes/adapters'), 'AdaptersPage'),
 })
 
+const connectionsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/connections',
+  beforeLoad: requireAdmin,
+  component: lazyRouteComponent(() => import('@/routes/connections'), 'ConnectionsPage'),
+})
+
+const settingsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/settings',
+  beforeLoad: requireAdmin,
+  component: lazyRouteComponent(() => import('@/routes/settings'), 'SettingsPage'),
+})
+
 const usersRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/users',
@@ -165,6 +179,8 @@ const routeTree = rootRoute.addChildren([
     pixelsRoute,
     actionsRoute,
     adaptersRoute,
+    connectionsRoute,
+    settingsRoute,
     usersRoute,
     mqttRoute,
     profileRoute,
