@@ -22,14 +22,36 @@ is only the first-boot bootstrap, and deleting a section (then
 restarting) is the way back to it — the recovery path if a saved
 database stops answering, since signing in needs the database.
 
+A third section, `display:`, is the broker the desk display (ESP32)
+should use, handed to it by GET /device/config (app/routes.py) — so
+moving it to another broker doesn't need a reflash. It also holds the
+SHA-256 of the display's device token (never the token itself):
+
+    display:
+      host: 192.0.2.25
+      port: 1883
+      username: esp32-client
+      password: {secret: connection_display_mqtt_password}
+      token_sha256: 3f0c...
+
+Without a saved broker there, the display gets the app's own broker
+host/port with MQTT_CLIENT_USERNAME/PASSWORD from .env.
+
 The checks the UI runs before a save are here too: check_mqtt() and
 inspect_database(), plus copy_database() for moving to an empty one.
+
+`python -m app.connections new-device-token` makes a new device token
+from the command line (printed once), same as the Connections page.
 """
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import logging
 import os
+import secrets
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -49,6 +71,7 @@ logger = logging.getLogger(__name__)
 
 MQTT_SECRET = "connection_mqtt_password"
 DATABASE_SECRET = "connection_database_password"
+DISPLAY_SECRET = "connection_display_mqtt_password"
 
 #: Seconds a connection test waits for a broker / database to answer.
 TEST_TIMEOUT_SECONDS = 10.0
@@ -156,10 +179,12 @@ def _read(path: Path) -> dict:
         raise ConnectionConfigError(f"{path} is not valid YAML") from exc
 
 
-def _write_section(path: str | Path, section: str, values: dict) -> None:
+def _write_section(path: str | Path, section: str, values: dict, *, keep: tuple[str, ...] = ()) -> None:
+    """Replace one section, carrying over its `keep` keys."""
     path = Path(path)
     raw = _read(path)
-    raw[section] = values
+    old = raw.get(section) if isinstance(raw.get(section), dict) else {}
+    raw[section] = {**values, **{k: old[k] for k in keep if k in old}}
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     with tmp.open("w") as f:
@@ -183,6 +208,77 @@ def save_database(path: str | Path, secrets_path: str | Path, conn: DatabaseConn
         "host": conn.host, "port": conn.port, "database": conn.database,
         "username": conn.username, "password": {"secret": DATABASE_SECRET},
     })
+
+
+def save_display_broker(path: str | Path, secrets_path: str | Path, conn: MqttConnection) -> None:
+    values: dict = {"host": conn.host, "port": conn.port, "username": conn.username}
+    if conn.password:
+        set_secret(secrets_path, DISPLAY_SECRET, conn.password)
+        values["password"] = {"secret": DISPLAY_SECRET}
+    _write_section(path, "display", values, keep=("token_sha256",))
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def new_device_token(path: str | Path) -> str:
+    """A new random device token, replacing any old one (which stops
+    working at once). Only its hash is kept, so this return value is the
+    one time anyone sees it."""
+    token = secrets.token_urlsafe(32)
+    path = Path(path)
+    raw = _read(path)
+    display = raw.get("display") if isinstance(raw.get("display"), dict) else {}
+    _write_section(path, "display", {**display, "token_sha256": _token_hash(token)})
+    return token
+
+
+def device_token_valid(path: str | Path, token: str | None) -> bool:
+    if not token:
+        return False
+    try:
+        display = _read(Path(path)).get("display") or {}
+    except ConnectionConfigError:
+        return False
+    stored = display.get("token_sha256") if isinstance(display, dict) else None
+    return bool(stored) and hmac.compare_digest(str(stored), _token_hash(token))
+
+
+@dataclass
+class DisplayConfig:
+    """What GET /device/config hands the display, and where it came from:
+    "app" (saved on the Connections page), "env" (the app's broker plus
+    MQTT_CLIENT_USERNAME/PASSWORD) or "none" (no account for it anywhere)."""
+    broker: MqttConnection | None
+    source: str
+    token_set: bool
+
+
+def load_display(settings) -> DisplayConfig:
+    """Read on every call (no restart needed after a save). A saved broker
+    whose password can't be decrypted counts as none, not as .env's —
+    handing the display a different broker than the one saved would be
+    worse than handing it nothing (it keeps its cached settings)."""
+    try:
+        display = _read(Path(settings.connections_config_path)).get("display") or {}
+    except ConnectionConfigError as exc:
+        logger.error("can't read the display's saved broker: %s", exc)
+        return DisplayConfig(None, "none", False)
+    token_set = bool(display.get("token_sha256"))
+    if display.get("host"):
+        try:
+            broker = MqttConnection(host=_host(display.get("host")), port=_port(display.get("port"), 1883),
+                                    username=display.get("username") or None,
+                                    password=_password(display.get("password"), settings.secrets_config_path))
+        except (ConnectionConfigError, SecretError) as exc:
+            logger.error("can't use the display's saved broker: %s", exc)
+            return DisplayConfig(None, "none", token_set)
+        return DisplayConfig(broker, "app", token_set)
+    if settings.mqtt_client_username and settings.mqtt_client_password:
+        return DisplayConfig(MqttConnection(settings.mqtt_host, settings.mqtt_port, settings.mqtt_client_username,
+                                            settings.mqtt_client_password), "env", token_set)
+    return DisplayConfig(None, "none", token_set)
 
 
 def _password(value: object, secrets_path: str) -> str | None:
@@ -413,3 +509,10 @@ async def copy_database(source_session, target: DatabaseConnection) -> dict[str,
     finally:
         await engine.dispose()
     return counts
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] != ["new-device-token"]:
+        sys.exit("usage: python -m app.connections new-device-token")
+    from app.settings import settings as _settings
+    print(new_device_token(_settings.connections_config_path))

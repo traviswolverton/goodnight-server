@@ -1,18 +1,20 @@
 """HTTP routes. This service is mostly a background MQTT publisher (see
-app/aggregator.py) — these endpoints exist for debugging, health checks, and
-the Frigate snapshot proxy. (The human-facing MQTT reference is served as
+app/aggregator.py) — these endpoints exist for debugging, health checks,
+the display's broker settings, and the Frigate snapshot proxy. (The human-facing MQTT reference is served as
 JSON by app/api/overview.py and rendered by the React app.)"""
 from __future__ import annotations
 
 import io
 import logging
 import re
+import time
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from PIL import Image
 
-from app.auth.deps import snapshot_access
+from app.auth.deps import client_ip, device_access, snapshot_access
+from app.connections import load_display
 from app.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,25 @@ router = APIRouter()
 @router.get("/healthz")
 async def healthz() -> dict[str, bool]:
     return {"ok": True}
+
+
+@router.get("/device/config", dependencies=[Depends(device_access)])
+async def device_config(request: Request, response: Response) -> dict[str, object]:
+    """The broker the desk display should connect to, and its login
+    (Connections page -> Display; app/connections.py). The display asks
+    at boot, every so often, and after repeated MQTT failures, and keeps
+    the answer in its flash — so changing broker needs no reflash.
+
+    Plain HTTP on the LAN, like the MQTT connection itself, which carries
+    this same password in the clear."""
+    request.app.state.device_last_seen = {"ts": time.time(), "ip": client_ip(request)}
+    response.headers["Cache-Control"] = "no-store"
+    display = load_display(settings)
+    if display.broker is None:
+        raise HTTPException(status_code=503, detail="no broker account is set for the display")
+    broker = display.broker
+    return {"mqtt_host": broker.host, "mqtt_port": broker.port,
+            "mqtt_username": broker.username or "", "mqtt_password": broker.password or ""}
 
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.\-]+$")

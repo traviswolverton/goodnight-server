@@ -7,6 +7,7 @@ from fastapi.routing import APIRoute
 
 from app.auth.deps import (
     audit_writes,
+    device_access,
     current_user,
     require_admin,
     require_admin_for_writes,
@@ -24,7 +25,7 @@ PUBLIC = {
     "/assets/{path:path}": "hashed JS/CSS bundle",
     "/{path:path}": "SPA shell (index.html) for client-side routes",
 }
-PROTECTORS = {current_user, require_admin, require_admin_for_writes, snapshot_access}
+PROTECTORS = {current_user, require_admin, require_admin_for_writes, snapshot_access, device_access}
 
 
 def _calls(dependant):

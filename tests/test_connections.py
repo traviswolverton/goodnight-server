@@ -322,3 +322,97 @@ async def test_copy_to_an_empty_database_keeps_everyone_signed_in():
         await copied_db.stop()
     finally:
         await source_db.stop()
+
+
+# --- the display (ESP32): its broker and device token -----------------------------------------
+
+from app.connections import device_token_valid, load_display, new_device_token, save_display_broker  # noqa: E402
+
+
+def _display_settings(paths, **over):
+    base = dict(connections_config_path=paths[0], secrets_config_path=paths[1],
+                mqtt_host="app-broker", mqtt_port=1883,
+                mqtt_client_username="esp32-client", mqtt_client_password="env-client-pw")
+    return SimpleNamespace(**{**base, **over})
+
+
+def test_display_falls_back_to_the_app_broker_with_env_client_account(paths):
+    display = load_display(_display_settings(paths))
+    assert display.source == "env" and display.broker.host == "app-broker"
+    assert display.broker.password == "env-client-pw"
+    assert load_display(_display_settings(paths, mqtt_client_password=None)).source == "none"
+
+
+def test_display_saved_broker_wins_and_keeps_the_token(paths):
+    token = new_device_token(paths[0])
+    save_display_broker(*paths, MqttConnection("other.lan", 1884, "esp32-client", "saved-pw"))
+    display = load_display(_display_settings(paths))
+    assert (display.source, display.broker.host, display.broker.password) == ("app", "other.lan", "saved-pw")
+    assert display.token_set and device_token_valid(paths[0], token)
+    assert token not in open(paths[0]).read()                   # only its hash is stored
+
+
+def test_a_new_token_replaces_the_old_one(paths):
+    old = new_device_token(paths[0])
+    new = new_device_token(paths[0])
+    assert device_token_valid(paths[0], new) and not device_token_valid(paths[0], old)
+    assert not device_token_valid(paths[0], "") and not device_token_valid(paths[0], None)
+
+
+@pytest.fixture
+def device_client(paths, monkeypatch):
+    from app.routes import router as public_router
+    monkeypatch.setattr(settings, "mqtt_host", "app-broker")
+    monkeypatch.setattr(settings, "mqtt_client_username", "esp32-client")
+    monkeypatch.setattr(settings, "mqtt_client_password", "env-client-pw")
+    app = FastAPI()
+    app.include_router(public_router)
+    return TestClient(app)
+
+
+def test_device_config_needs_the_token(device_client, paths):
+    assert device_client.get("/device/config").status_code == 401
+    new_device_token(paths[0])
+    assert device_client.get("/device/config", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    assert device_client.get("/device/config?token=x").status_code == 401
+
+
+def test_device_config_hands_over_the_broker_and_records_the_check_in(device_client, paths):
+    token = new_device_token(paths[0])
+    resp = device_client.get("/device/config", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200 and resp.headers["cache-control"] == "no-store"
+    assert resp.json() == {"mqtt_host": "app-broker", "mqtt_port": 1883,
+                           "mqtt_username": "esp32-client", "mqtt_password": "env-client-pw"}
+    assert device_client.app.state.device_last_seen["ip"] == "testclient"
+
+
+def test_device_config_without_an_account_is_503(device_client, paths, monkeypatch):
+    monkeypatch.setattr(settings, "mqtt_client_password", None)
+    token = new_device_token(paths[0])
+    assert device_client.get("/device/config", headers={"Authorization": f"Bearer {token}"}).status_code == 503
+
+
+def test_display_api_token_and_save(client, monkeypatch, paths):
+    monkeypatch.setattr(settings, "mqtt_client_username", None)
+    monkeypatch.setattr(settings, "mqtt_client_password", None)
+    token = client.post("/api/connections/display/token").json()["token"]
+    assert device_token_valid(paths[0], token)
+    body = client.get("/api/connections").json()["display"]
+    assert body["token_set"] and body["source"] == "none" and token not in str(body)
+
+    async def check(conn):
+        return {"ok": True, "error": None}
+    monkeypatch.setattr(api_module, "check_mqtt", check)
+    resp = client.put("/api/connections/display",
+                      json={"fields": {"host": "b.lan", "username": "esp32-client", "password": "pw-1234"}})
+    assert resp.json() == {"saved": True} and client.restarts == []       # no restart needed
+    assert device_token_valid(paths[0], token)                             # save kept the token
+    assert client.get("/api/connections").json()["display"]["source"] == "app"
+
+
+def test_display_api_rejects_values_the_display_cannot_hold(client):
+    resp = client.post("/api/connections/display/test",
+                       json={"fields": {"host": "b.lan", "username": "esp32-client", "password": "x" * 96}})
+    assert resp.status_code == 400 and "95" in resp.json()["detail"]
+    resp = client.post("/api/connections/display/test", json={"fields": {"host": "b.lan", "username": "", "password": ""}})
+    assert resp.status_code == 400

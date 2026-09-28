@@ -69,9 +69,34 @@ allowed. The setting is kept in `config/connections.yaml` and overrides the
 `MQTT_*` values in `.env`, with the password stored in the encrypted
 `secrets.enc.yaml`. Delete that section and restart to go back to `.env`.
 
-The ESP32 gets the same host and port, and the `esp32-client` login, in its
-`include/secrets.h` (desk-dashboard-esp32) — a reflash, since the broker
-address is compiled in.
+## The display's broker
+
+The desk display (ESP32) asks this app which broker to use and how to sign
+in, with `GET /device/config`. It asks at boot, every 15 minutes, and after
+repeated failed connects, and it keeps the answer in flash. So moving it to
+another broker is a change on the **Connections** page (Desk display →
+Change), which tests the `esp32-client` login before saving. It needs no
+reflash and no app restart.
+
+Set up once:
+
+1. On the Connections page, set the display's broker and account. Until
+   one is saved there, the display is handed this app's broker with
+   `MQTT_CLIENT_USERNAME`/`MQTT_CLIENT_PASSWORD` from `.env`.
+2. Under **Device token**, make a token, then put the two lines it shows
+   (`SERVER_URL`, `DEVICE_TOKEN`) in the firmware's `include/secrets.h`
+   and flash it once. From the shell instead:
+   `docker compose exec app python -m app.connections new-device-token`.
+
+The request is plain HTTP on the LAN, with the token in an `Authorization`
+header, so it stays out of access logs. That's the same exposure as MQTT
+itself, which sends this password in the clear. Only the token's hash is
+stored. Making a new token cuts off the old one at once.
+
+The firmware only keeps a fetched change once it has connected with it.
+A change that can't connect is rolled back after 5 tries, so a mistake on
+the server can't strand the display. Firmware without `SERVER_URL`/
+`DEVICE_TOKEN` keeps using its compiled-in `MQTT_*` values, as before.
 
 ## Bundled broker
 
@@ -101,5 +126,7 @@ docker compose --profile local-mqtt stop mosquitto
 docker compose --profile local-mqtt rm -f mosquitto
 ```
 
-and reflash the ESP32 with the new broker address. Until the display is reflashed it stays connected to the
-old broker and shows the last status it received there.
+and move the display over on the Connections page (Desk display → Change).
+Firmware that predates `SERVER_URL`/`DEVICE_TOKEN` needs a reflash with the
+new broker address instead; until then it stays on the old broker, showing
+the last status it received there.

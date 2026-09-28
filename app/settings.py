@@ -4,8 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # extra="ignore": .env legitimately carries vars this class doesn't
-    # declare — MQTT_CLIENT_USERNAME/PASSWORD and
-    # APP_PORT (consumed by docker-compose.yml's own substitution, never
+    # declare — APP_PORT (consumed by docker-compose.yml's own substitution, never
     # read by the Python process at all). Without this, pydantic-settings
     # defaults to extra="forbid" and raises a ValidationError that embeds
     # the actual offending values in its message — which is exactly how a
@@ -21,6 +20,11 @@ class Settings(BaseSettings):
     # Must match a user in mosquitto/config/acl.conf — see .env.example.
     mqtt_username: str = "aggregator"
     mqtt_password: str | None = None
+    # The desk display's own account (esp32-client). Handed to the display
+    # by GET /device/config until one is saved on the Connections page;
+    # also what the bundled broker provisions (mosquitto/entrypoint.sh).
+    mqtt_client_username: str | None = None
+    mqtt_client_password: str | None = None
     mqtt_status_topic: str = "homelab/status"
     mqtt_camera_alert_topic: str = "homelab/alert/camera"
     # Actions (app/actions.py): the display publishes to the first, this

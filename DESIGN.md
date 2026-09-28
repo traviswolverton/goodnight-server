@@ -743,6 +743,15 @@ the ESP32 client needs to reach both from elsewhere on the network.
     matching the adapter forms: an admin could point it at a host they
     control and capture it. That's accepted, because admins already hold
     every other credential in the app.
+  - **The display gets its broker from the server** (`GET /device/config`,
+    since 2026-09-28), so it can move brokers without a reflash. It
+    authenticates with a device token: a 256-bit random value, stored
+    only as a SHA-256, sent as a Bearer header so it never appears in an
+    access log. The endpoint hands out the `esp32-client` password over
+    plain HTTP. That's accepted because the display's MQTT connection
+    already sends the same password in the clear on the same LAN. The
+    firmware (desk-dashboard-esp32 `device_config.cpp`) keeps a fetched
+    change only once it has connected with it, and rolls back otherwise.
   - **The ESP32 needs no credentials**: camera-alert `snapshot_url`s carry an
     HMAC signature and expiry (`app/signing.py`), which `/snapshot/*` accepts
     in place of a session. Links must fit the firmware's 160-char URL buffer

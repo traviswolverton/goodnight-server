@@ -265,6 +265,18 @@ export interface ConnectionsResponse {
     password_set: boolean
     available: boolean
   }
+  /** The broker the desk display is handed by GET /device/config. */
+  display: {
+    /** none = no account for the display anywhere yet. */
+    source: 'app' | 'env' | 'none'
+    host: string | null
+    port: number | null
+    username: string | null
+    password_set: boolean
+    token_set: boolean
+    /** Its last GET /device/config since the app started (unix seconds). */
+    last_seen: { ts: number; ip: string | null } | null
+  }
   /** False until SECRETS_MASTER_KEY is set: there'd be nowhere to keep a password. */
   can_save: boolean
 }

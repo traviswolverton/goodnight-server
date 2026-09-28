@@ -34,6 +34,10 @@ services:
       MQTT_PORT: ${MQTT_PORT:-1883}
       MQTT_USERNAME: ${MQTT_USERNAME:-aggregator}
       MQTT_PASSWORD: ${MQTT_PASSWORD:?set in .env}
+      # The display's account, handed to it by GET /device/config until one
+      # is saved on the Connections page (docs/mqtt-broker.md).
+      MQTT_CLIENT_USERNAME: ${MQTT_CLIENT_USERNAME:-}
+      MQTT_CLIENT_PASSWORD: ${MQTT_CLIENT_PASSWORD:-}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-15}
       HEARTBEAT_INTERVAL_SECONDS: ${HEARTBEAT_INTERVAL_SECONDS:-45}
       # Landscape to match the ESP32 client's CAMERA screen — see

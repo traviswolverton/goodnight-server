@@ -139,6 +139,20 @@ async def audit_writes(request: Request, ctx: AuthContext = Depends(current_user
         await session.commit()
 
 
+async def device_access(request: Request) -> None:
+    """GET /device/config: the desk display's device token, sent as
+    `Authorization: Bearer <token>` (a header, so it never lands in an
+    access log the way a query string would). The display has no session
+    and no user account; this token is all it has."""
+    from app.connections import device_token_valid   # local: keeps auth free of connections at import
+
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not device_token_valid(settings.connections_config_path, token.strip()):
+        logger.warning("rejected a device config request from %s: missing or wrong device token",
+                       client_ip(request))
+        raise HTTPException(status_code=401, detail="missing or invalid device token")
+
+
 async def snapshot_access(request: Request, camera: str, event: str | None = None,
                           exp: str | None = None, sig: str | None = None,
                           ctx: AuthContext | None = Depends(optional_user)) -> None:

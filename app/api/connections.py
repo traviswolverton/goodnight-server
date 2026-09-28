@@ -9,7 +9,11 @@ broker it can't reach, or a database nobody could sign in to. A save
 then restarts the app, which is when the new connection takes over.
 
 Passwords go to the encrypted secret store and are never returned. A
-blank password in a form means "keep the one in use now"."""
+blank password in a form means "keep the one in use now".
+
+The Display section is the broker the desk display is handed by GET
+/device/config. Saving it needs no restart (that endpoint reads the file
+each time); the display picks it up at its next check-in."""
 from __future__ import annotations
 
 import logging
@@ -26,8 +30,11 @@ from app.connections import (
     copy_database,
     database_from_form,
     inspect_database,
+    load_display,
     mqtt_from_form,
+    new_device_token,
     save_database,
+    save_display_broker,
     save_mqtt,
 )
 from app.secret_store import SecretError
@@ -86,7 +93,22 @@ async def get_connections(request: Request) -> dict[str, object]:
             "password_set": bool(current and current.password),
             "available": bool(database and database.available),
         },
+        "display": _display_summary(request),
         "can_save": bool(settings.secrets_master_key),
+    }
+
+
+def _display_summary(request: Request) -> dict[str, object]:
+    display = load_display(settings)
+    broker = display.broker
+    return {
+        "source": display.source,
+        "host": broker.host if broker else None,
+        "port": broker.port if broker else None,
+        "username": broker.username if broker else None,
+        "password_set": bool(broker and broker.password),
+        "token_set": display.token_set,
+        "last_seen": getattr(request.app.state, "device_last_seen", None),
     }
 
 
@@ -166,3 +188,57 @@ async def save_database_connection(request: Request, body: DatabaseSaveForm) -> 
                    conn.host, conn.port, conn.database, body.mode, copied or "nothing")
     _schedule_restart()
     return {"saved": True, "restarting": True, "copied": copied}
+
+
+# --- Display (the desk ESP32) ---------------------------------------------
+
+#: The display's fixed-size buffers for what /device/config returns
+#: (desk-dashboard-esp32 include/device_config.h), minus the terminator.
+DISPLAY_LIMITS = {"host": 63, "username": 47, "password": 95}
+
+
+def _display_form(body: ConnectionForm):
+    current = load_display(settings).broker
+    try:
+        conn = mqtt_from_form(body.fields, current.password if current else None)
+    except ConnectionConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not conn.username or not conn.password:
+        raise HTTPException(status_code=400, detail="The display needs a username and password")
+    for name, limit in DISPLAY_LIMITS.items():
+        if len(getattr(conn, name) or "") > limit:
+            raise HTTPException(status_code=400, detail=f"The display can't hold a {name} over {limit} characters")
+    return conn
+
+
+@router.post("/connections/display/test")
+async def test_display(body: ConnectionForm) -> dict[str, object]:
+    return await check_mqtt(_display_form(body))
+
+
+@router.put("/connections/display")
+async def save_display(body: ConnectionForm) -> dict[str, object]:
+    conn = _display_form(body)
+    _require_master_key()
+    result = await check_mqtt(conn)
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=f"Not saved: the broker test failed ({result['error']})")
+    try:
+        save_display_broker(settings.connections_config_path, settings.secrets_config_path, conn)
+    except (SecretError, ConnectionConfigError) as exc:
+        raise HTTPException(status_code=500, detail=f"Couldn't save the connection: {exc}")
+    logger.warning("display broker changed to %s:%s via the admin API", conn.host, conn.port)
+    return {"saved": True}
+
+
+@router.post("/connections/display/token")
+async def make_device_token() -> dict[str, object]:
+    """A new device token, shown this once (only its hash is kept). The
+    old one stops working at once; the display keeps its cached broker
+    settings until it's reflashed with the new one."""
+    try:
+        token = new_device_token(settings.connections_config_path)
+    except ConnectionConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    logger.warning("new display device token issued via the admin API")
+    return {"token": token}
