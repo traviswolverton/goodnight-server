@@ -5,7 +5,7 @@ Read on demand, never polled: the only things that use a state are the
 web UI's Actions page (its state beside each label, and the editor's
 Preview) and an Action's `verify` check, so each asks when it needs to.
 
-The connection (URL, token, TLS check) is set on the Connections page and
+The connection (URL, token, TLS check) is set on the Settings page and
 saved in config/connections.yaml (app/connections.py). A save swaps the
 client in place (HomeAssistantLink.replace) — no restart.
 
@@ -113,7 +113,7 @@ class HomeAssistant:
         resp.raise_for_status()
 
     async def check(self, client: httpx.AsyncClient) -> dict[str, object]:
-        """Reach it and sign in: what the Connections page's Test shows."""
+        """Reach it and sign in: what the Settings page's Test shows."""
         config = await self._get(client, "/api/config")
         config = config if isinstance(config, dict) else {}
         return {"version": config.get("version"), "location_name": config.get("location_name")}

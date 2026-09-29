@@ -72,7 +72,7 @@ MQTT_PASSWORD=<password>
 ```
 
 After the first start, an administrator can change the app's broker on the
-web UI's **Connections** page instead. It tests the connection and login
+web UI's **Settings** page instead. It tests the connection and login
 before it saves anything, then restarts the app. The broker's topic ACLs
 can't be tested: Mosquitto silently drops a publish the account isn't
 allowed. The setting is kept in `config/connections.yaml` and overrides the
@@ -84,13 +84,13 @@ allowed. The setting is kept in `config/connections.yaml` and overrides the
 The bedside device (ESP32) asks this app which broker to use and how to
 sign in, with `GET /device/config`. It asks at boot, every 15 minutes, and
 after repeated failed connects, and it keeps the answer in flash. So moving
-it to another broker is a change on the **Connections** page (Bedside
+it to another broker is a change on the **Settings** page (Bedside
 device → Change), which tests the `bedside-esp32` login before saving. It
 needs no reflash and no app restart.
 
 Set up once:
 
-1. On the Connections page, set the device's broker and account. Until
+1. On the Settings page, set the device's broker and account. Until
    one is saved there, the device is handed this app's broker with
    `MQTT_CLIENT_USERNAME`/`MQTT_CLIENT_PASSWORD` from `.env`.
 2. Under **Device token**, make a token, then put the two lines it shows

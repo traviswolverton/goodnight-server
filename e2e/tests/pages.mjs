@@ -61,7 +61,7 @@ await step('buttons', async () => {
 })
 
 await step('connections', async () => {
-  await goto('/connections')
+  await goto('/settings')
   const t = await text()
   check('connections: Home Assistant card shows the moved URL, and that it can’t be reached',
     /homeassistant\.invalid:8123/.test(t) && /Can’t be reached/.test(t), t.slice(0, 300))
@@ -77,7 +77,8 @@ await step('connections', async () => {
 })
 
 await step('adapters (gone)', async () => {
-  await goto('/adapters'); check('old Adapters bookmark → /connections', path() === '/connections', path())
+  await goto('/adapters'); check('old Adapters bookmark → /settings', path() === '/settings', path())
+  await goto('/connections'); check('old Connections bookmark → /settings', path() === '/settings', path())
 })
 
 await step('users', async () => {
@@ -108,8 +109,8 @@ await signOut()
 await step('viewer', async () => {
   await login(VIEWER.u, VIEWER.p)
   const nav = await page.$$eval('aside nav a', (a) => a.map((x) => x.textContent.trim()))
-  check('viewer: nav hides Connections and Users', !nav.includes('Connections') && !nav.includes('Users') && nav.includes('Buttons'), nav.join(','))
-  await goto('/connections'); check('viewer: /connections redirects home', path() === '/', path())
+  check('viewer: nav hides Settings and Users', !nav.includes('Settings') && !nav.includes('Users') && nav.includes('Buttons'), nav.join(','))
+  await goto('/settings'); check('viewer: /settings redirects home', path() === '/', path())
   await goto('/users'); check('viewer: /users redirects home', path() === '/', path())
   await goto('/buttons')
   check('viewer: buttons page is read-only', /read-only access/.test(await text()) && await page.$eval('button[aria-label^="Button 1:"]', (b) => b.disabled))
@@ -135,12 +136,12 @@ await step('viewer', async () => {
 await step('mobile', async () => {
   await page.setViewport({ width: 390, height: 800, isMobile: true, hasTouch: true })
   await login(ADMIN.u, ADMIN.p)
-  for (const p of ['/', '/device', '/buttons', '/actions', '/connections', '/users', '/mqtt', '/profile']) {
+  for (const p of ['/', '/device', '/buttons', '/actions', '/settings', '/users', '/mqtt', '/profile']) {
     await goto(p)
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
     check(`mobile: ${p} has no horizontal scroll`, fits, `scrollWidth=${await page.evaluate(() => document.documentElement.scrollWidth)}`)
   }
-  await goto('/connections'); await page.locator('main button ::-p-text(Change)').click(); await page.waitForSelector('[role=dialog]'); await sleep(500)
+  await goto('/settings'); await page.locator('main button ::-p-text(Change)').click(); await page.waitForSelector('[role=dialog]'); await sleep(500)
   check('mobile: Home Assistant dialog fits the screen', await page.$eval('[role=dialog]', (d) => { const b = d.getBoundingClientRect(); return b.left >= 0 && b.right <= window.innerWidth + 1 && b.top >= 0 }))
   await shot('x1-mobile-dialog'); await page.keyboard.press('Escape')
   await goto('/buttons'); await shot('x3-mobile-buttons')

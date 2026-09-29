@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setCsrfToken } from '@/lib/api'
 import type { SettingField, SettingsResponse } from '@/lib/types'
-import { SettingsPage } from '@/routes/settings'
+import { PreferencesSection } from '@/routes/settings'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }))
 vi.mock('sonner', () => ({ toast }))
@@ -37,7 +37,7 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <SettingsPage />
+      <PreferencesSection />
     </QueryClientProvider>,
   )
 }
@@ -55,7 +55,18 @@ afterEach(() => {
   setCsrfToken(null)
 })
 
-describe('SettingsPage', () => {
+describe('PreferencesSection', () => {
+  it('keeps a setting’s explanation behind its (i) until asked', async () => {
+    const user = userEvent.setup()
+    routes['/api/settings'] = { ...data, fields: data.fields.map((f) => (f.key === 'audit_retention_days' ? { ...f, help: 'Older entries are removed at start-up.' } : f)) }
+    renderPage()
+    const info = await screen.findByRole('button', { name: 'About Keep audit log for' })
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+    await user.click(info)
+    expect(info).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByLabelText('Keep audit log for')).toHaveAccessibleDescription('Older entries are removed at start-up.')
+  })
+
   it('sends only what changed, and resets as null', async () => {
     const user = userEvent.setup()
     renderPage()

@@ -10,7 +10,7 @@ effect a little later).
 
 What's deliberately NOT here: anything that can lock you out beyond
 what the Settings page guards against (DATABASE_URL, MQTT — those are the
-Connections page, with their own tests), SECRETS_MASTER_KEY (it unlocks
+Connections section, with their own tests), SECRETS_MASTER_KEY (it unlocks
 this very file's neighbours), the first-admin pair (bootstrap only), the MQTT
 topic names (a contract with the device's firmware) and the Compose-only
 values (APP_PORT, APP_BIND, APP_UID, COMPOSE_PROFILES).

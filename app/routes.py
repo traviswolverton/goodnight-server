@@ -22,7 +22,7 @@ async def healthz() -> dict[str, bool]:
 @router.get("/device/config", dependencies=[Depends(device_access)])
 async def device_config(request: Request, response: Response) -> dict[str, object]:
     """The broker the bedside device should connect to, and its login
-    (Connections page -> Bedside device; app/connections.py). The device asks
+    (Settings page -> Bedside device; app/connections.py). The device asks
     at boot, every so often, and after repeated MQTT failures, and keeps
     the answer in its flash — so changing broker needs no reflash.
 

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     mqtt_username: str = "bedside-aggregator"
     mqtt_password: str | None = None
     # The bedside device's own account (bedside-esp32). Handed to the device
-    # by GET /device/config until one is saved on the Connections page;
+    # by GET /device/config until one is saved on the Settings page;
     # also what the bundled broker provisions (mosquitto/entrypoint.sh).
     mqtt_client_username: str | None = None
     mqtt_client_password: str | None = None
@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     secrets_config_path: str = "config/secrets.enc.yaml"
     secrets_master_key: str | None = None
     # MQTT broker / database / Home Assistant set from the web UI's
-    # Connections page; the first two replace the MQTT_* / DATABASE_URL
+    # Settings page; the first two replace the MQTT_* / DATABASE_URL
     # values above (app/connections.py).
     connections_config_path: str = "config/connections.yaml"
     # Settings changed on the web UI's Settings page, laid over the values

@@ -11,7 +11,7 @@ the app's port must stay reachable **over plain HTTP on your LAN**, and the
 device's `SERVER_URL` must be that LAN address (e.g. `http://192.0.2.45:8001`),
 **not** your public HTTPS name.
 
-`/device/config` needs the device token (Connections page), and it hands out
+`/device/config` needs the device token (Settings page), and it hands out
 only the device's own MQTT login — which travels the LAN in the clear anyway,
 on every MQTT connection.
 
@@ -83,7 +83,7 @@ server {
       (browser dev tools → Application → Cookies), and Users → Activity shows
       *your* IP, not the proxy's.
 - [ ] Restart the device and confirm it still fetches its broker settings
-      over the LAN address (the Connections page shows when it last asked).
+      over the LAN address (the Settings page shows when it last asked).
 - [ ] Postgres and MQTT ports aren't published to the internet
       (Postgres isn't published at all; MQTT `1883` is LAN-only by design).
 

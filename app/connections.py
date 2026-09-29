@@ -1,5 +1,5 @@
 """The MQTT broker, Postgres database and Home Assistant this app connects
-to, as set from the web UI's Connections page (app/api/connections.py).
+to, as set from the web UI's Settings page (app/api/connections.py).
 
 Saved in config/connections.yaml, with each password in the encrypted
 secret store (app/secret_store.py), never in the YAML itself:
@@ -53,7 +53,7 @@ The checks the UI runs before a save are here too: check_mqtt() and
 inspect_database(), plus copy_database() for moving to an empty one.
 
 `python -m app.connections new-device-token` makes a new device token
-from the command line (printed once), same as the Connections page.
+from the command line (printed once), same as the Settings page.
 """
 from __future__ import annotations
 
@@ -354,7 +354,7 @@ def device_token_valid(path: str | Path, token: str | None) -> bool:
 @dataclass
 class DisplayConfig:
     """What GET /device/config hands the device, and where it came from:
-    "app" (saved on the Connections page), "env" (the app's broker plus
+    "app" (saved on the Settings page), "env" (the app's broker plus
     MQTT_CLIENT_USERNAME/PASSWORD) or "none" (no account for it anywhere)."""
     broker: MqttConnection | None
     source: str

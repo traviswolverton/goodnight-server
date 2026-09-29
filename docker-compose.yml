@@ -35,7 +35,7 @@ services:
       MQTT_USERNAME: ${MQTT_USERNAME:-bedside-aggregator}
       MQTT_PASSWORD: ${MQTT_PASSWORD:?set in .env}
       # The display's account, handed to it by GET /device/config until one
-      # is saved on the Connections page (docs/mqtt-broker.md).
+      # is saved on the Settings page (docs/mqtt-broker.md).
       MQTT_CLIENT_USERNAME: ${MQTT_CLIENT_USERNAME:-}
       MQTT_CLIENT_PASSWORD: ${MQTT_CLIENT_PASSWORD:-}
       # Home Assistant MQTT discovery for the device (app/device.py); blank = off.

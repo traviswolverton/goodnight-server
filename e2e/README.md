@@ -24,7 +24,7 @@ again. Screenshots land in `e2e/shots/` (git-ignored).
 
 The seed config in `seed/` is copied fresh for every run (an old-style
 `adapters.yaml` with a Home Assistant at a host that doesn't exist, which the
-app moves to the Connections page on startup) — the tests mutate it, so
+app moves to the Settings page on startup) — the tests mutate it, so
 never point these at real config. The suite creates its own admin from
 throwaway credentials.
 

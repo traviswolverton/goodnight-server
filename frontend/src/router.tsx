@@ -98,13 +98,6 @@ function requireAdmin({ context }: { context: { session: Session } }) {
   if (context.session.user.role !== 'admin') throw redirect({ to: '/' })
 }
 
-const connectionsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: '/connections',
-  beforeLoad: requireAdmin,
-  component: lazyRouteComponent(() => import('@/routes/connections'), 'ConnectionsPage'),
-})
-
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/settings',
@@ -122,8 +115,9 @@ const usersRoute = createRoute({
 const mqttRoute = createRoute({ getParentRoute: () => appRoute, path: '/mqtt', component: lazyRouteComponent(() => import('@/routes/mqtt'), 'MqttPage') })
 const profileRoute = createRoute({ getParentRoute: () => appRoute, path: '/profile', component: lazyRouteComponent(() => import('@/routes/profile'), 'ProfilePage') })
 
-/** Old addresses (the desk-era card editor, the server-rendered MQTT docs
- *  and the Adapters page) still work as bookmarks: they land on the nearest
+/** Old addresses (the desk-era card editor, the server-rendered MQTT docs,
+ *  the Adapters page and the Connections page, now part of Settings) still
+ *  work as bookmarks: they land on the nearest
  *  page here. */
 const oldEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -136,7 +130,14 @@ const oldAdaptersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/adapters',
   beforeLoad: () => {
-    throw redirect({ to: '/connections' })
+    throw redirect({ to: '/settings' })
+  },
+})
+const oldConnectionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/connections',
+  beforeLoad: () => {
+    throw redirect({ to: '/settings' })
   },
 })
 const oldMqttDocsRoute = createRoute({
@@ -161,12 +162,12 @@ const routeTree = rootRoute.addChildren([
   oldEditorRoute,
   oldMqttDocsRoute,
   oldAdaptersRoute,
+  oldConnectionsRoute,
   appRoute.addChildren([
     homeRoute,
     deviceRoute,
-    buttonsRoute,
     actionsRoute,
-    connectionsRoute,
+    buttonsRoute,
     settingsRoute,
     usersRoute,
     mqttRoute,

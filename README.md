@@ -40,10 +40,10 @@ a Postgres you provide (one-time role/database setup in
 that the two `ADMIN_*` values are ignored and can be removed.
 
 After the first start, connect **Home Assistant** (its URL and a long-lived
-access token) on the web UI's **Connections** page; the broker and database
+access token) on the web UI's **Settings** page; the broker and database
 can be changed there too. Each change is tested before it's saved, and the saved
 values override `.env` (`config/connections.yaml`). The rest of the tunable
-values are on the **Settings** page. These are sessions,
+values are in its Preferences section. These are sessions,
 HTTPS and proxies, audit retention, Ollama, and log level. They take effect
 immediately on save, with no restart (`config/settings.yaml`).
 

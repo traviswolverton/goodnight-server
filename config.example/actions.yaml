@@ -5,7 +5,7 @@
 # to edit: the web UI's Actions page — it has entity pickers and a Run
 # button, and saves apply straight away.
 #
-# Actions run through the Home Assistant set on the Connections page.
+# Actions run through the Home Assistant set on the Settings page.
 # `kind` is one of:
 #   service — call `service` (domain.service) on `target`, with extra `data`
 #   script  — run the `target` script.* entity, `data` as its variables

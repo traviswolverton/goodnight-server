@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
     ha_conn = load_home_assistant(settings)
     home_assistant = HomeAssistantLink(
         HomeAssistant(ha_conn.url, ha_conn.token or "", ha_conn.verify_ssl) if ha_conn else None, http_client)
-    logger.info("Home Assistant: %s", ha_conn.url if ha_conn else "not set up (Connections page)")
+    logger.info("Home Assistant: %s", ha_conn.url if ha_conn else "not set up (Settings page)")
 
     database = Database(settings.database_url)
     database.on_ready(bootstrap_admin)

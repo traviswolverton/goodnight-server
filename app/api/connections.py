@@ -1,4 +1,4 @@
-"""The Connections page: which MQTT broker, Postgres database and Home
+"""The Connections section of the Settings page: which MQTT broker, Postgres database and Home
 Assistant this app uses (app/connections.py). Admins only.
 
 Each change is a small flow, like Home Assistant's: the form's values are
@@ -327,7 +327,7 @@ async def home_assistant_catalog(request: Request) -> dict[str, object]:
     """Every entity and service: the Actions editor's pickers."""
     link = request.app.state.home_assistant
     if link.ha is None:
-        raise HTTPException(status_code=409, detail="Home Assistant isn't set up (Connections page)")
+        raise HTTPException(status_code=409, detail="Home Assistant isn't set up (Settings page)")
     try:
         return await asyncio.wait_for(link.ha.catalog(link.client), timeout=20)
     except Exception as exc:  # noqa: BLE001 - reported to the page

@@ -32,7 +32,7 @@ created on first connect (tested against Postgres 17 and 18).
 ## Changing it from the web UI
 
 After the first start, an administrator can switch databases on the
-**Connections** page instead of editing `.env`. **Test** checks the new
+**Settings** page instead of editing `.env`. **Test** checks the new
 database before anything is saved:
 
 - it connects, and the role can create tables there (the migrations need to)

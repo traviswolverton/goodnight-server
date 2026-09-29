@@ -78,7 +78,7 @@ connection (below).
 
 ## Architecture: one Home Assistant, read on demand
 Home Assistant is a connection like the broker and the database: a URL, a
-long-lived access token and a TLS-check switch, saved on the Connections
+long-lived access token and a TLS-check switch, saved in the Connections section of the Settings
 page into `config/connections.yaml` (the token encrypted in
 `secrets.enc.yaml`). A save swaps the client in place, no restart
 (`HomeAssistantLink` in `app/home_assistant.py`).
@@ -87,7 +87,7 @@ Nothing polls it. What reads it asks when it needs to: a button press runs
 an Action through its REST API (and an Action's `verify` check reads the
 entities it watches), and the Actions page renders each Action's
 `state_template` from one `GET /api/states` per page load (cached for two
-seconds so the Preview right after reuses it). The Home and Connections
+seconds so the Preview right after reuses it). The Home and Settings
 pages ask whether it answers (`GET /api/config`, cached 30 s).
 
 Templates render in a Jinja2 sandbox against `states['<entity_id>']`
@@ -356,7 +356,7 @@ the ESP32 client needs to reach both from elsewhere on the network.
     the broker can be changed from the UI: an app that crash-looped
     without its broker would take down the page you'd fix it from.
   - **Admins can re-point the broker and the database from the UI**
-    (Connections page, since 2026-09-28; `app/connections.py`). `.env` is
+    (Settings page, since 2026-09-28; `app/connections.py`). `.env` is
     only the first-start bootstrap. A saved section in
     `config/connections.yaml` overrides it. Because signing in needs the
     database, a database change is gated on proof that someone can still
@@ -432,7 +432,7 @@ the ESP32 client needs to reach both from elsewhere on the network.
   `secrets.enc.yaml` (`app/secret_store.py`, referenced from
   `connections.yaml` as `password: {secret: <name>}`); the one value held
   in the clear is `SECRETS_MASTER_KEY` in the gitignored `.env`. The
-  Connections page's *Restart* (after a broker or database change)
+  Settings page's *Restart* (after a broker or database change)
   SIGTERMs the process so Docker's `restart: unless-stopped` brings it
   back — no docker socket mounted. (Until 2026-09-29 there was also an
   Adapters page and `adapters.yaml`; see "What the bedside dropped".)

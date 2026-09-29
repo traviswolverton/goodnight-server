@@ -73,11 +73,11 @@ export function ActionsPage() {
             <EmptyState title="Home Assistant isn’t set up yet">
               Actions run through Home Assistant.{' '}
               {canEdit ? (
-                <Link to="/connections" className="underline">
-                  Connect it on the Connections page
+                <Link to="/settings" className="underline">
+                  Connect it on the Settings page
                 </Link>
               ) : (
-                'An administrator can connect it on the Connections page'
+                'An administrator can connect it on the Settings page'
               )}
               .
             </EmptyState>

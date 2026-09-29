@@ -26,13 +26,13 @@ await audit('login (light)')
 await t.login(ADMIN.u, ADMIN.p)
 for (const theme of ['light', 'dark']) {
   await setTheme(theme)
-  for (const p of ['/', '/device', '/buttons', '/actions', '/connections', '/users', '/mqtt', '/profile']) {
+  for (const p of ['/', '/device', '/buttons', '/actions', '/settings', '/users', '/mqtt', '/profile']) {
     await goto(p)
     await page.waitForFunction(() => !document.querySelector('[aria-busy=true]'), { timeout: 8000 }).catch(() => {})
     await audit(`${p} (${theme})`)
   }
 
-  await goto('/connections')
+  await goto('/settings')
   await page.locator('main button ::-p-text(Change)').click()
   await page.waitForSelector('[role=dialog]')
   await audit(`Home Assistant dialog (${theme})`)

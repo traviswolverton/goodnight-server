@@ -1,4 +1,4 @@
-"""The Connections page: the MQTT broker / database / Home Assistant saved
+"""The Connections section of the Settings page: the MQTT broker / database / Home Assistant saved
 from the UI (app/connections.py, app/api/connections.py)."""
 from __future__ import annotations
 

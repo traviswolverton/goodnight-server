@@ -258,7 +258,7 @@ class ActionRunner:
 
         ha = self.home_assistant.ha
         if ha is None:
-            logger.warning("action %r: Home Assistant isn't set up (Connections page)", action_id)
+            logger.warning("action %r: Home Assistant isn't set up (Settings page)", action_id)
             return ActionOutcome(ok=False, text="No HA")
         client = self.home_assistant.client
 
