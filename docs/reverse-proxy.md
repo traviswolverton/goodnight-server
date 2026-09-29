@@ -1,20 +1,19 @@
-# Putting Desk Dashboard behind a reverse proxy (HTTPS / outside your LAN)
+# Putting Bedside Dashboard behind a reverse proxy (HTTPS / outside your LAN)
 
 Read this before exposing the web UI beyond your LAN. Everything else in the
 app assumes it; this is the part that isn't automatic.
 
 ## The one constraint: the display can't do TLS
 
-The ESP32 fetches camera snapshots with a bare **plain-HTTP** request to the
-`snapshot_url` in the MQTT alert (its firmware deliberately has no TLS stack).
-So the app's port must stay reachable **over plain HTTP on your LAN**, and the
-Frigate adapter's *"This server's URL, as the display reaches it"* field must
-be that LAN address (e.g. `http://192.0.2.45:8000`), **not** your public
-HTTPS name.
+The ESP32 asks the server which MQTT broker to use with a bare **plain-HTTP**
+request to `/device/config` (its firmware deliberately has no TLS stack). So
+the app's port must stay reachable **over plain HTTP on your LAN**, and the
+device's `SERVER_URL` must be that LAN address (e.g. `http://192.0.2.45:8001`),
+**not** your public HTTPS name.
 
-That's safe: `/snapshot/*` only accepts a signed, short-lived link (or a
-logged-in session), so a leaked link expires within minutes and works for one
-camera + event only.
+`/device/config` needs the device token (Connections page), and it hands out
+only the device's own MQTT login — which travels the LAN in the clear anyway,
+on every MQTT connection.
 
 Two shapes that work:
 
@@ -25,7 +24,7 @@ Two shapes that work:
    the proxy is exposed.
 2. **Proxy-only.** Set `APP_BIND=127.0.0.1` so nothing but a proxy on the same
    host can reach the app, and have the proxy also serve a LAN-only plain-HTTP
-   listener for `/snapshot/` (see the Caddy example). More moving parts; only
+   listener for `/device/config` (see the Caddy example). More moving parts; only
    worth it if you can't firewall the port.
 
 ## App settings (`.env`)
@@ -35,7 +34,6 @@ Two shapes that work:
 | `HTTPS_ONLY` | `true` | Session cookie becomes `Secure` and `__Host-`-prefixed; `Strict-Transport-Security` is sent. With this on, **plain-HTTP logins stop working** (browsers drop the cookie) — use the HTTPS name. |
 | `TRUSTED_PROXIES` | your proxy's IP(s), comma-separated | Only then is `X-Forwarded-For` believed, so the audit log and login throttling see the real client instead of the proxy. Leave empty and every request looks like it came from the proxy — one attacker could lock everyone out. |
 | `APP_BIND` | `127.0.0.1` (shape 2 only) | Publish the port on this host only. |
-| `SNAPSHOT_SIGNING_KEY` | `openssl rand -hex 32` (optional) | Keeps snapshot links valid across restarts. |
 
 The proxy must pass `X-Forwarded-For` (all mainstream proxies do by default)
 and `Host`. It does **not** need to set `X-Forwarded-Proto`: the app decides
@@ -48,10 +46,10 @@ dashboard.example.com {
     reverse_proxy 192.0.2.45:8000
 }
 
-# Shape 2 only: LAN plain-HTTP door for the display, snapshots only.
+# Shape 2 only: LAN plain-HTTP door for the display, its config only.
 http://192.0.2.45:8080 {
-    @snap path /snapshot/*
-    reverse_proxy @snap 127.0.0.1:8000
+    @device path /device/config
+    reverse_proxy @device 127.0.0.1:8000
     respond "not found" 404
 }
 ```
@@ -84,8 +82,8 @@ server {
 - [ ] Sign in over HTTPS and confirm: the cookie is `Secure`
       (browser dev tools → Application → Cookies), and Users → Activity shows
       *your* IP, not the proxy's.
-- [ ] Trigger a camera alert (or open a signed link) and confirm the display
-      still gets its snapshot over the LAN address.
+- [ ] Restart the device and confirm it still fetches its broker settings
+      over the LAN address (the Connections page shows when it last asked).
 - [ ] Postgres and MQTT ports aren't published to the internet
       (Postgres isn't published at all; MQTT `1883` is LAN-only by design).
 

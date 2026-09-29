@@ -3,80 +3,6 @@
 export type Status = 'ok' | 'warn' | 'down'
 export type Context = Record<string, unknown>
 
-export interface CardInfo {
-  name: string
-  title: string
-  title_override: string | null
-  lines_template: string[] | null
-  status_template: string | null
-  render: boolean
-  resolved_lines: string[]
-  resolved_status: Status
-}
-export interface CardsResponse {
-  context: Context
-  cards: CardInfo[]
-  /** The display's limit for each line, by position (line 1 first). */
-  line_max_chars: number[]
-}
-
-export interface Diagnostic {
-  template: string
-  rendered: string | null
-  error: string | null
-  /** Rendered empty: a blank row on the display. */
-  blank: boolean
-  length: number
-  /** This line's limit on the display; null past the last line it has. */
-  max_chars: number | null
-  too_long: boolean
-  /** Too wide to sit still on the display, so it scrolls sideways. */
-  scrolls: boolean
-  /** Characters the display's font can't draw (it has plain ASCII only). */
-  undrawable?: string[]
-}
-export interface PreviewLinesResponse {
-  diagnostics: Diagnostic[]
-  final_lines: string[]
-  used_default_fallback: boolean
-  default_lines: string[]
-}
-export interface PreviewStatusResponse {
-  rendered: string | null
-  resolved_status: Status
-  used_fallback: boolean
-}
-export interface PreviewColorResponse {
-  rendered: string | null
-  resolved_color: string | null
-  used_fallback: boolean
-}
-export interface LineTooLong {
-  /** 1-based. */
-  line: number
-  length: number
-  max_chars: number
-}
-export interface SaveLinesResponse {
-  too_long: LineTooLong[]
-}
-export interface SaveTitleResponse {
-  title: string
-  too_long: boolean
-  client_max_chars: number
-}
-/** The Cards page's one Save & apply (title, lines and status together). */
-export interface SaveCardResponse {
-  title: string
-  title_too_long: boolean
-  client_max_chars: number
-  too_long: LineTooLong[]
-}
-export interface GenerateResponse {
-  tools_consulted: string[]
-  raw: string
-}
-
 export interface AdapterField {
   name: string
   label: string
@@ -119,18 +45,6 @@ export interface TestAdapterResult {
   summary?: Record<string, string | number | boolean | null>
 }
 
-export interface ServiceReading {
-  name: string
-  title: string
-  status: Status
-  lines: string[]
-}
-export interface StatusPayload {
-  ts: number
-  overall: { level: Status; text: string }
-  services: ServiceReading[]
-}
-
 export interface OverviewAdapter {
   name: string
   type: string
@@ -140,11 +54,8 @@ export interface OverviewAdapter {
   reason?: string | null
 }
 export interface Overview {
-  overall: { level: Status; text: string } | null
   last_poll_ts: number | null
-  last_published_ts: number | null
   poll_interval_seconds: number
-  heartbeat_interval_seconds: number
   version: string
   uptime_seconds: number
   mqtt_connected: boolean
@@ -163,22 +74,16 @@ export interface AuditEntry {
   detail: Record<string, unknown> | null
 }
 
+/** One topic between the server and the device (GET /api/mqtt-reference). */
+export interface MqttTopic {
+  topic: string
+  direction: string
+  retained: boolean
+  about: string
+  example: unknown
+}
 export interface MqttReference {
-  status_topic: string
-  camera_topic: string
-  heartbeat_interval_seconds: number
-  status_schema_url: string
-  camera_schema_url: string
-  status_schema: unknown
-  camera_schema: unknown
-  status_example: unknown | null
-  camera_example: unknown
-  limits: {
-    title_max_chars: number
-    line_max_chars: number[]
-    overall_text_max_chars: number
-    max_services: number
-  }
+  topics: MqttTopic[]
 }
 
 /** What an adapter offers the pickers (Home Assistant: its entities and services). */

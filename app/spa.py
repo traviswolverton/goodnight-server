@@ -3,7 +3,7 @@
 Vite's hashed bundle files under /assets are cached forever; index.html
 (and any other static file at the top level, e.g. the favicon) are not. Any
 other GET path that isn't owned by the backend falls back to index.html so
-client-side routes (/cards, /login, ...) survive a refresh.
+client-side routes (/device, /login, ...) survive a refresh.
 
 The shell and bundle are deliberately public: they contain no data, and the
 login screen is part of the app. Everything the app *shows* comes from /api,
@@ -24,7 +24,7 @@ DEFAULT_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 #: URL paths owned by the backend. An unknown path under one of these is a
 #: real 404 (JSON for API clients), never the SPA shell.
-BACKEND_PREFIXES = ("api", "schema", "snapshot", "assets", "healthz")
+BACKEND_PREFIXES = ("api", "assets", "healthz")
 
 IMMUTABLE = "public, max-age=31536000, immutable"
 

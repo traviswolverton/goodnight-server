@@ -1,6 +1,5 @@
-"""Actions (app/actions.py): the actions.yaml round trip, the status
-payload carrying none, the runner (debounce, failures, verify checks), and
-the API."""
+"""Actions (app/actions.py): the actions.yaml round trip, the runner
+(debounce, failures, verify checks), and the API."""
 from __future__ import annotations
 
 import asyncio
@@ -114,20 +113,10 @@ def test_one_bad_entry_does_not_cost_the_rest(actions_path):
     assert [a.id for a in load_actions(str(actions_path))] == ["ok"]
 
 
-# --- the status payload ----------------------------------------------------
-
-async def test_the_payload_carries_no_actions(actions_path):
-    """Buttons are bound server-side and the device has no menu, so it never
-    needs the list."""
-    save_action(str(actions_path), _lamp())
-    agg = Aggregator(adapters=[SwitchAdapter()], publisher=None, client=None)
-    assert "actions" not in (await agg.poll_once()).model_dump()
-
-
 # --- the runner ------------------------------------------------------------
 
 def _runner(actions_path, adapter):
-    agg = Aggregator(adapters=[adapter], publisher=None, client=None)
+    agg = Aggregator(adapters=[adapter], client=None)
     return ActionRunner(agg, str(actions_path)), agg
 
 
@@ -176,7 +165,7 @@ async def test_runner_reports_a_failure_without_raising(actions_path):
 
 def _client(actions_path, adapter=None):
     adapter = adapter or SwitchAdapter()
-    agg = Aggregator(adapters=[adapter], publisher=None, client=None)
+    agg = Aggregator(adapters=[adapter], client=None)
     agg.latest_results = {"home": AdapterResult(
         name="home", status="ok", context={"entities": {"light.desk": {"state": "on"}}})}
     test_app = FastAPI()

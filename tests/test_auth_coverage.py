@@ -11,7 +11,6 @@ from app.auth.deps import (
     current_user,
     require_admin,
     require_admin_for_writes,
-    snapshot_access,
 )
 from app.main import app
 
@@ -19,13 +18,12 @@ from app.main import app
 PUBLIC = {
     "/healthz": "liveness probe",
     "/api/auth/login": "the login itself (rate limited)",
-    "/schema": "static JSON Schema files (decided: public)",
     # The React shell and its bundle: static files with no data in them; the
     # login screen is part of the app. What the app shows comes from /api.
     "/assets/{path:path}": "hashed JS/CSS bundle",
     "/{path:path}": "SPA shell (index.html) for client-side routes",
 }
-PROTECTORS = {current_user, require_admin, require_admin_for_writes, snapshot_access, device_access}
+PROTECTORS = {current_user, require_admin, require_admin_for_writes, device_access}
 
 
 def _calls(dependant):
@@ -70,15 +68,12 @@ def test_every_state_changing_api_route_is_audited_or_self_auditing():
             continue
         if audit_writes in set(_calls(route.dependant)):
             continue
-        # previews are read-only by design: viewers may call them, nothing is saved
-        if route.path in {"/api/preview", "/api/preview-status"}:
-            continue
         missing.append(f"{sorted(writes)} {route.path}")
     assert not missing, f"state-changing routes that don't write an audit entry: {missing}"
 
 
-def test_previews_are_the_only_write_verbs_open_to_viewers():
-    """Viewers get every GET plus the preview POSTs; nothing else state-changing."""
+def test_no_write_verbs_are_open_to_viewers():
+    """Viewers get every GET; nothing state-changing."""
     for route in app.routes:
         if not isinstance(route, APIRoute) or not route.path.startswith("/api/"):
             continue
@@ -86,5 +81,4 @@ def test_previews_are_the_only_write_verbs_open_to_viewers():
             continue
         calls = set(_calls(route.dependant))
         admin_gated = bool(calls & {require_admin, require_admin_for_writes}) or route.path.startswith("/api/auth/")
-        viewer_ok = {"/api/preview", "/api/preview-status"}
-        assert admin_gated or route.path in viewer_ok, route.path
+        assert admin_gated, route.path

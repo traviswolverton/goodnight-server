@@ -1,25 +1,17 @@
 import { queryOptions } from '@tanstack/react-query'
-import { api, ApiError } from '@/lib/api'
+import { api } from '@/lib/api'
 import type {
   ActionsResponse,
   AdaptersResponse,
   AdapterType,
   AuditEntry,
-  CardsResponse,
   ConnectionsResponse,
   DeviceResponse,
   MqttReference,
   Overview,
   SettingsResponse,
-  StatusPayload,
 } from '@/lib/types'
 import type { User } from '@/lib/auth'
-
-export const cardsQuery = queryOptions({
-  queryKey: ['cards'],
-  queryFn: () => api<CardsResponse>('/api/cards'),
-  refetchInterval: 15_000, // the variable table is live data
-})
 
 export const actionsQuery = queryOptions({
   queryKey: ['actions'],
@@ -48,20 +40,6 @@ export const adapterTypesQuery = queryOptions({
 export const overviewQuery = queryOptions({
   queryKey: ['overview'],
   queryFn: () => api<Overview>('/api/overview'),
-  refetchInterval: 10_000,
-})
-
-/** The last published payload. 503 just means "nothing polled yet": that's a state, not an error. */
-export const statusQuery = queryOptions({
-  queryKey: ['status'],
-  queryFn: async () => {
-    try {
-      return await api<StatusPayload>('/api/status')
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 503) return null
-      throw error
-    }
-  },
   refetchInterval: 10_000,
 })
 

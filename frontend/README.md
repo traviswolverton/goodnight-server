@@ -41,7 +41,7 @@ The Docker image runs `npm run build` in a first stage, so a type error fails
 - `src/lib/queries.ts` / `types.ts` — query definitions and the API's shapes.
 - `src/router.tsx` — code-based routes; everything except `/login` sits under
   an auth guard, admin-only pages under a role guard; old bookmarks redirect.
-- `src/routes/` — one file per page (home, cards, adapters, users,
+- `src/routes/` — one file per page (home, device, buttons, actions, adapters, users,
   profile, mqtt, login).
 - `src/components/` — shared pieces (app shell, device preview, variables
   table, AI-assist box, adapter form, confirm dialog, query states).

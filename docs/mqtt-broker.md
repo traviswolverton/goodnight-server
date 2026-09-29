@@ -14,13 +14,13 @@ Two accounts, each limited to exactly the topics it needs:
 
 | Account | Who | Reads | Writes |
 |---|---|---|---|
-| `bedside-aggregator` | this service | `bedside/sensors`, `bedside/button`, `bedside/availability` | `bedside/status`, `bedside/alert/camera`, `bedside/config`, `bedside/sound`, and this device's discovery topics under `homeassistant/` |
-| `bedside-esp32` | the nightstand device | `bedside/status`, `bedside/config`, `bedside/sound` | `bedside/sensors`, `bedside/button`, `bedside/availability` |
+| `bedside-aggregator` | this service | `bedside/sensors`, `bedside/button`, `bedside/availability` | `bedside/config`, `bedside/sound`, and this device's discovery topics under `homeassistant/` |
+| `bedside-esp32` | the nightstand device | `bedside/config`, `bedside/sound` | `bedside/sensors`, `bedside/button`, `bedside/availability` |
 
 On a shared broker these limits matter more, not less. Nothing else on it
-(Home Assistant, other devices, the desk dashboard) can write what the
-bedside display shows. The device's login — stored on a device on your
-nightstand — can touch nothing but its own topics. And this service can
+(Home Assistant, other devices, the desk dashboard) can change the
+bedside device's settings or make it play a sound. The device's login —
+stored on a device on your nightstand — can touch nothing but its own topics. And this service can
 only write discovery messages for its own device, never another HA
 entity's.
 
@@ -37,8 +37,6 @@ and add to the broker's ACL file (the same rules as the bundled broker's
 
 ```
 user bedside-aggregator
-topic write bedside/status
-topic write bedside/alert/camera
 topic write bedside/config
 topic write bedside/sound
 topic read bedside/sensors
@@ -48,7 +46,6 @@ topic write homeassistant/sensor/bedside_dashboard/#
 topic write homeassistant/device_automation/bedside_dashboard/#
 
 user bedside-esp32
-topic read bedside/status
 topic read bedside/config
 topic read bedside/sound
 topic write bedside/sensors

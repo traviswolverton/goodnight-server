@@ -151,7 +151,7 @@ def client(paths, monkeypatch):
     app = FastAPI()
     app.include_router(router)
     app.state.connection_sources = {"mqtt": "env", "database": "app"}
-    app.state.publisher = SimpleNamespace(connected=True)
+    app.state.device_link = SimpleNamespace(state=SimpleNamespace(link_connected=True))
     app.state.database = SimpleNamespace(available=True)
     c = TestClient(bypass_auth(app))
     c.restarts = restarts

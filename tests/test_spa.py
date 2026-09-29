@@ -28,7 +28,7 @@ def client(app: FastAPI | None = None) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
 
 
-@pytest.mark.parametrize("path", ["/", "/login", "/cards", "/users", "/some/deep/client/route"])
+@pytest.mark.parametrize("path", ["/", "/login", "/device", "/users", "/some/deep/client/route"])
 async def test_client_side_routes_get_the_shell_and_are_never_cached(dist, path):
     async with client() as c:
         r = await c.get(path)
@@ -51,7 +51,7 @@ async def test_missing_asset_is_a_404_not_the_shell(dist):
     assert r.status_code == 404 and INDEX not in r.text
 
 
-@pytest.mark.parametrize("path", ["/api/nope", "/api", "/schema/nope.json", "/snapshot", "/healthz/x"])
+@pytest.mark.parametrize("path", ["/api/nope", "/api", "/healthz/x"])
 async def test_unknown_backend_paths_are_404_not_html(dist, path):
     """An API client hitting a mistyped URL must not be handed the SPA shell."""
     async with client() as c:
@@ -70,23 +70,21 @@ def test_path_traversal_cannot_escape_the_dist_directory(dist):
 async def test_clear_message_when_the_frontend_has_not_been_built(tmp_path, monkeypatch):
     monkeypatch.setattr("app.settings.settings.frontend_dist_path", str(tmp_path / "nothing-here"))
     async with client() as c:
-        r = await c.get("/cards")
+        r = await c.get("/buttons")
     assert r.status_code == 503 and "has not been built" in r.text
 
 
 async def test_the_real_app_keeps_its_own_routes_ahead_of_the_catch_all(dist):
     """Regression guard for registration order: the SPA catch-all must come
-    after everything the backend owns, including the /schema static mount."""
+    after everything the backend owns."""
     from app.main import app
 
     async with client(app) as c:
         health = await c.get("/healthz")
-        schema = await c.get("/schema/status_payload.schema.json")
         shell = await c.get("/login")
-        api = await c.get("/api/cards")
+        api = await c.get("/api/actions")
         old = await c.get("/tools/lines-template")
     assert health.json() == {"ok": True}
-    assert schema.status_code == 200 and schema.headers["content-type"].startswith("application/json")
     assert shell.text == INDEX and shell.headers["content-security-policy"].count("'unsafe-inline'") == 1
     assert api.status_code in (401, 503) and api.headers["content-type"].startswith("application/json")
     assert old.text == INDEX                                   # old bookmarks reach the SPA, which redirects them

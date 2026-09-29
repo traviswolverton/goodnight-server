@@ -44,8 +44,7 @@ async def env(tmp_path, monkeypatch):
         app.include_router(r)
     app.add_middleware(SecurityHeadersMiddleware)
     app.state.database = db
-    app.state.aggregator = SimpleNamespace(cards=[], latest_results={}, adapters=[], latest_payload=None,
-                                           get_card=lambda name: None)
+    app.state.aggregator = SimpleNamespace(latest_results={}, adapters=[], last_poll_ts=None)
     yield SimpleNamespace(app=app, db=db)
     if pg_url:
         db.available = True
@@ -148,15 +147,13 @@ async def test_state_changing_requests_need_the_csrf_header(seeded):
 
 # --- roles ------------------------------------------------------------------
 
-async def test_viewer_can_read_and_preview_but_not_write_or_see_admin_areas(seeded):
+async def test_viewer_can_read_but_not_write_or_see_admin_areas(seeded):
     async with new_client(seeded) as c:
         h = {"X-CSRF-Token": await login(c, "bob")}
-        assert (await c.get("/api/cards")).status_code == 200
-        assert (await c.get("/api/status")).status_code == 503                    # authorised: just no payload yet
-        # preview is allowed for viewers (404 = auth passed, card doesn't exist)
-        assert (await c.post("/api/preview", json={"card": "x", "templates": []}, headers=h)).status_code == 404
-        for method, path, body in (("POST", "/api/save-render", {"card": "x", "render": True}),
-                                   ("POST", "/api/save", {"card": "x"}),
+        assert (await c.get("/api/actions")).status_code == 200
+        assert (await c.get("/api/overview")).status_code == 200
+        for method, path, body in (("POST", "/api/actions", {"id": "x"}),
+                                   ("PUT", "/api/device/buttons", {"buttons": {}}),
                                    ("POST", "/api/restart", None),
                                    ("GET", "/api/adapters", None),
                                    ("GET", "/api/users", None),

@@ -4,8 +4,8 @@ import { navFor } from '@/lib/nav'
 
 describe('safeNext', () => {
   it('keeps same-site absolute paths', () => {
-    expect(safeNext('/cards')).toBe('/cards')
-    expect(safeNext('/cards?card=Card%201')).toBe('/cards?card=Card%201')
+    expect(safeNext('/buttons')).toBe('/buttons')
+    expect(safeNext('/actions?x=Card%201')).toBe('/actions?x=Card%201')
   })
   it.each(['//evil.example', 'https://evil.example', 'javascript:alert(1)', '/\\evil.example', '', undefined, null])(
     'refuses %s (no open redirects)',
@@ -15,16 +15,16 @@ describe('safeNext', () => {
 
 describe('isServerPath', () => {
   it('flags paths the backend serves, not this app', () => {
-    expect(isServerPath('/schema/status_payload.schema.json')).toBe(true)
-    expect(isServerPath('/snapshot/front_door')).toBe(true)
-    expect(isServerPath('/cards')).toBe(false)
+    expect(isServerPath('/api/actions')).toBe(true)
+    expect(isServerPath('/healthz')).toBe(true)
+    expect(isServerPath('/buttons')).toBe(false)
     expect(isServerPath('/apiary')).toBe(false)
   })
 })
 
 describe('navFor', () => {
   it('hides admin-only sections from viewers', () => {
-    expect(navFor('viewer').map((i) => i.label)).toEqual(['Home', 'Device', 'Buttons', 'Cards', 'Actions', 'MQTT reference'])
-    expect(navFor('admin').map((i) => i.label)).toEqual(['Home', 'Device', 'Buttons', 'Cards', 'Actions', 'Adapters', 'Connections', 'Settings', 'Users', 'MQTT reference'])
+    expect(navFor('viewer').map((i) => i.label)).toEqual(['Home', 'Device', 'Buttons', 'Actions', 'MQTT reference'])
+    expect(navFor('admin').map((i) => i.label)).toEqual(['Home', 'Device', 'Buttons', 'Actions', 'Adapters', 'Connections', 'Settings', 'Users', 'MQTT reference'])
   })
 })

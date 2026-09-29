@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDateTime, formatUptime, templatesFromLines, timeAgo } from '@/lib/format'
+import { formatDateTime, formatUptime, timeAgo } from '@/lib/format'
 
 describe('timeAgo', () => {
   const now = 1_000_000
@@ -12,13 +12,6 @@ describe('timeAgo', () => {
     [now - 172800, '2 d ago'],
   ])('%s -> %s', (ts, expected) => expect(timeAgo(ts, now)).toBe(expected))
   it('never goes negative for a timestamp slightly in the future', () => expect(timeAgo(now + 3, now)).toBe('just now'))
-})
-
-describe('templatesFromLines', () => {
-  it('trims each line, keeps a blank middle line in place and drops blank trailing ones', () => {
-    expect(templatesFromLines(['  {{ a }}  ', ' ', '{{ c }}', '', '  '])).toEqual(['{{ a }}', '', '{{ c }}'])
-    expect(templatesFromLines(['', '', '', ''])).toEqual([])
-  })
 })
 
 describe('formatDateTime', () => {

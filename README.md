@@ -1,17 +1,20 @@
 # Bedside Dashboard Server
 
 The bedside sibling of [desk-dashboard-server](https://github.com/traviswolverton/desk-dashboard-server),
-forked with full history (`upstream` remote). Same job — poll homelab services,
-turn them into what a small display should show, publish it over MQTT — for a
-nightstand ESP32 ([bedside-dashboard-esp32](https://github.com/traviswolverton/bedside-dashboard-esp32))
-with a 128×32 OLED, 8 buttons, a joystick, and light/temperature/humidity
-sensors. On top of the desk server it adds the **Device** page: live sensor
-readings, the screen's light-following dimmer, and what each button does.
+forked with full history (`upstream` remote), for a nightstand ESP32
+([bedside-dashboard-esp32](https://github.com/traviswolverton/bedside-dashboard-esp32))
+with a 128×32 OLED, 8 buttons, a joystick, a piezo buzzer, and
+light/temperature/humidity sensors. Where the desk server shows homelab status
+cards, this one turns button presses into Home Assistant actions — with a
+confirm press, a check that it really happened, and a sound for each step —
+and looks after the device itself: its **Device** page (readings, the
+light-following dimmer, the buzzer) and **Buttons** page.
 
 - **Web UI** — React (`frontend/`), served by the same container.
-- **API + poller** — FastAPI (`app/`): adapters → cards (Jinja2 templates)
-  → MQTT (`bedside/status`); the device link (`app/device.py`) sends the device
-  its settings and reads its sensors and button presses.
+- **API + poller** — FastAPI (`app/`): polls adapters (Home Assistant, the
+  device's own sensors) for Actions to run and check; the device link
+  (`app/device.py`) sends the device its settings and sounds, and turns its
+  button presses into Actions.
 - **Accounts** — Postgres; admin/viewer roles, sessions, audit log.
 - **MQTT broker** — your central broker (accounts and ACLs in
   [`docs/mqtt-broker.md`](docs/mqtt-broker.md)), or a bundled Mosquitto via the
@@ -40,11 +43,11 @@ that the two `ADMIN_*` values are ignored and can be removed.
 After the first start, the broker and database can be changed on the web UI's
 **Connections** page. Each change is tested before it's saved, and the saved
 values override `.env` (`config/connections.yaml`). The rest of the tunable
-values are on the **Settings** page. These are polling, snapshots, sessions,
+values are on the **Settings** page. These are polling, sessions,
 HTTPS and proxies, audit retention, Ollama, and log level. They take effect
 immediately on save, with no restart (`config/settings.yaml`).
 
-Live configuration (adapters, cards, device, connections, settings, encrypted secrets) lives outside
+Live configuration (adapters, actions, device, connections, settings, encrypted secrets) lives outside
 the repo in `/opt/bedside-dashboard-data/config` and is edited through the web UI;
 `config.example/` shows the file formats.
 
@@ -93,10 +96,11 @@ docs/           Longer-form docs and plans
 
 ## Security in one paragraph
 
-Every route requires a login except `/healthz`, the JSON Schema files, and the
-static UI shell (a test fails if a new route is left open). Passwords are
+Every route requires a login except `/healthz`, `/device/config` (the device's
+own token), and the static UI shell (a test fails if a new route is left open). Passwords are
 Argon2id; sessions are server-side; every write needs a CSRF token; logins and
 password changes are rate-limited; all changes are audited; adapter credentials
-are encrypted at rest and never sent to a browser. The ESP32 needs no
-credentials — the snapshot links in camera alerts are signed and expire. Details
+are encrypted at rest and never sent to a browser. The ESP32 holds
+only its own MQTT login and device token; a button press is a number, never an
+instruction. Details
 in `DESIGN.md` ("Security / network exposure").

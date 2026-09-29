@@ -71,7 +71,7 @@ describe('api()', () => {
     const handler = vi.fn()
     setUnauthorizedHandler(handler)
     fetchMock.mockImplementation(async () => respond(401, { detail: 'not authenticated' }))
-    await api('/api/cards').catch(() => {})
+    await api('/api/actions').catch(() => {})
     expect(handler).toHaveBeenCalledTimes(1)
     await api('/api/auth/login', { method: 'POST', expectUnauthorized: true }).catch(() => {})
     expect(handler).toHaveBeenCalledTimes(1)

@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 import app.api.app_settings as api_module
 from app.api import router
-from app.app_settings import FIELDS, SavedSettings, SettingsError, check_combination, coerce
+from app.app_settings import FIELDS, SavedSettings, SettingsError, coerce
 from app.settings import settings
 from tests.auth_helpers import bypass_auth
 
@@ -31,7 +31,7 @@ def _restore_settings(tmp_path, monkeypatch):
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setattr(settings, "poll_interval_seconds", 15.0)
-    monkeypatch.setattr(settings, "heartbeat_interval_seconds", 45.0)
+    monkeypatch.setattr(settings, "audit_retention_days", 365)
     monkeypatch.setattr(settings, "https_only", False)
     monkeypatch.setattr(settings, "trusted_proxies", "")
     app = FastAPI()
@@ -48,7 +48,7 @@ def _field(body, key):
 
 @pytest.mark.parametrize(("key", "raw", "expected"), [
     ("poll_interval_seconds", "20", 20.0),
-    ("snapshot_width", "480", 480),
+    ("audit_retention_days", "90", 90),
     ("https_only", True, True),
     ("trusted_proxies", " 192.0.2.10 , ::1 ,", "192.0.2.10,::1"),
     ("ollama_base_url", "http://host:11434/", "http://host:11434"),
@@ -62,7 +62,7 @@ def test_coerce_accepts(key, raw, expected):
 @pytest.mark.parametrize(("key", "raw"), [
     ("poll_interval_seconds", "1"),                # below the minimum
     ("poll_interval_seconds", "abc"),
-    ("snapshot_width", "480.5"),                   # integers only
+    ("audit_retention_days", "90.5"),             # integers only
     ("https_only", "yes"),
     ("trusted_proxies", "192.0.2.0/24"),         # client_ip() matches exact addresses
     ("ollama_base_url", "host:11434"),
@@ -74,21 +74,17 @@ def test_coerce_rejects(key, raw):
         coerce(key, raw)
 
 
-def test_heartbeat_must_not_be_shorter_than_the_poll():
-    with pytest.raises(SettingsError, match="Heartbeat"):
-        check_combination({"poll_interval_seconds": 60, "heartbeat_interval_seconds": 30})
-
-
 # --- startup overlay -------------------------------------------------------------------------
 
 def test_saved_values_overlay_and_bad_ones_are_skipped(tmp_path):
     path = tmp_path / "settings.yaml"
-    path.write_text("poll_interval_seconds: 30\nsnapshot_width: nonsense\nlog_level: WARNING\n")
+    path.write_text("poll_interval_seconds: 30\naudit_retention_days: nonsense\n"
+                    "heartbeat_interval_seconds: 45\nlog_level: WARNING\n")  # a since-removed setting too
     before_poll = settings.poll_interval_seconds
     saved = SavedSettings(settings)
-    before_width = settings.snapshot_width
+    before_days = settings.audit_retention_days
     saved.apply(settings, path)
-    assert settings.poll_interval_seconds == 30.0 and settings.snapshot_width == before_width
+    assert settings.poll_interval_seconds == 30.0 and settings.audit_retention_days == before_days
     assert logging.getLogger().level == logging.WARNING           # applied, not just stored
     rows = {r["key"]: r for r in saved.describe(settings, path)}
     assert rows["poll_interval_seconds"]["source"] == "app"
@@ -110,16 +106,9 @@ def test_save_applies_immediately_and_reset_goes_back(client):
 
 
 def test_a_bad_value_saves_nothing(client):
-    resp = client.put("/api/settings", json={"values": {"poll_interval_seconds": "20", "snapshot_width": "5"}})
-    assert resp.status_code == 400 and "Width" in resp.json()["detail"]
+    resp = client.put("/api/settings", json={"values": {"poll_interval_seconds": "20", "audit_retention_days": "-1"}})
+    assert resp.status_code == 400 and "audit" in resp.json()["detail"].lower()
     assert settings.poll_interval_seconds == 15.0
-
-
-def test_combination_rule_uses_the_values_being_saved(client):
-    resp = client.put("/api/settings", json={"values": {"poll_interval_seconds": "60"}})
-    assert resp.status_code == 400 and "Heartbeat" in resp.json()["detail"]
-    ok = client.put("/api/settings", json={"values": {"poll_interval_seconds": "60", "heartbeat_interval_seconds": "120"}})
-    assert ok.status_code == 200
 
 
 def test_https_only_cannot_be_turned_on_over_http(client):
@@ -159,3 +148,10 @@ def test_ollama_test_lists_models(client, monkeypatch):
 def test_ollama_test_unreachable(client):
     body = client.post("/api/settings/ollama/test", json={"url": "http://127.0.0.1:1"}).json()
     assert body["ok"] is False and body["error"]
+
+
+def test_saving_drops_settings_that_no_longer_exist(client):
+    with open(settings.app_settings_path, "w") as f:
+        f.write("heartbeat_interval_seconds: 45\nlog_level: DEBUG\n")
+    assert client.put("/api/settings", json={"values": {"poll_interval_seconds": "20"}}).status_code == 200
+    assert yaml.safe_load(open(settings.app_settings_path)) == {"log_level": "DEBUG", "poll_interval_seconds": 20.0}

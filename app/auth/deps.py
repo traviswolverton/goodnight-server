@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 #: Only these request-body keys are copied into the audit trail — never
 #: anything that could carry a secret (e.g. an adapter's `fields`).
-AUDIT_BODY_KEYS = ("card", "name", "index", "type", "enabled", "render")
+AUDIT_BODY_KEYS = ("name", "type", "enabled", "sound")
 
 
 @dataclass(frozen=True)
@@ -163,18 +163,3 @@ async def device_access(request: Request) -> None:
         logger.warning("rejected a device config request from %s: missing or wrong device token",
                        client_ip(request))
         raise HTTPException(status_code=401, detail="missing or invalid device token")
-
-
-async def snapshot_access(request: Request, camera: str, event: str | None = None,
-                          exp: str | None = None, sig: str | None = None,
-                          ctx: AuthContext | None = Depends(optional_user)) -> None:
-    """/snapshot access: a valid signed link (what the ESP32 uses) OR a
-    logged-in session. A present-but-invalid signature is a hard 403."""
-    from app.signing import verify_snapshot    # local: keeps auth free of signing at import
-
-    if exp is not None or sig is not None:
-        if verify_snapshot(camera, event, exp, sig):
-            return
-        raise HTTPException(status_code=403, detail="invalid or expired snapshot link")
-    if ctx is None:
-        raise HTTPException(status_code=401, detail="not authenticated")

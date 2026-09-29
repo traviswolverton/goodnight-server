@@ -1,20 +1,20 @@
-"""Actions: things the display can make happen (toggle a light, run a
-script), defined in config/actions.yaml and listed on the device's
-Actions menu. See DESIGN.md "Actions".
+"""Actions: things a button on the device can make happen (toggle a light,
+run a script), defined in config/actions.yaml and bound to buttons on the
+Buttons page. See DESIGN.md "Actions".
 
-Like a Card, an Action is plain data with no code change needed
-to add one. It names the adapter that performs it (today, a Home
-Assistant adapter — `Adapter.action_kinds` says which adapters can) and
-optionally a `state_template` whose output the display shows next to the
-label ("on", "21.5°").
+An Action is plain data with no code change needed to add one. It names
+the adapter that performs it (today, a Home Assistant adapter —
+`Adapter.action_kinds` says which adapters can) and optionally a
+`state_template` whose output the web UI shows next to the label ("on",
+"21.5°").
 
-The display only ever sends an action's `id`; everything that does
-something — the service, the target, the credentials — stays here. So a
+The device only ever says which button was pressed; everything that does
+something — the service, the target, the credentials — stays here. So the
 device (or anything else holding its MQTT login) can only trigger actions
 already listed in this file.
 
-actions.yaml is re-read fresh on every poll and every run: a save through the web UI takes effect
-straight away, with no live object to patch.
+actions.yaml is re-read fresh on every run: a save through the web UI
+takes effect straight away, with no live object to patch.
 """
 from __future__ import annotations
 
@@ -34,9 +34,9 @@ logger = logging.getLogger(__name__)
 
 ActionKind = Literal["service", "script", "event"]
 
-#: The display's own limits (bedside-dashboard-esp32 status_payload.h) —
-#: the web UI and the save path enforce these rather than letting a label
-#: be silently cut short on the device.
+#: Sized for the device's small screen (on-screen confirmations); the web
+#: UI and the save path enforce them rather than letting a label be
+#: silently cut short there.
 ID_MAX = 23
 LABEL_MAX = 23
 STATE_MAX = 11

@@ -73,7 +73,7 @@ def _require_master_key() -> None:
 @router.get("/connections")
 async def get_connections(request: Request) -> dict[str, object]:
     sources = _sources(request)
-    publisher = getattr(request.app.state, "publisher", None)
+    device_link = getattr(request.app.state, "device_link", None)
     database = getattr(request.app.state, "database", None)
     current = _current_database()
     return {
@@ -81,7 +81,7 @@ async def get_connections(request: Request) -> dict[str, object]:
             "source": sources["mqtt"],
             "host": settings.mqtt_host, "port": settings.mqtt_port,
             "username": settings.mqtt_username, "password_set": bool(settings.mqtt_password),
-            "connected": bool(publisher and publisher.connected),
+            "connected": bool(device_link and device_link.state.link_connected),
         },
         "database": {
             "source": sources["database"],

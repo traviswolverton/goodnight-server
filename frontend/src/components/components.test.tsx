@@ -2,21 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { AdapterFields, TestResult } from '@/components/adapter-form'
-import { DevicePreview } from '@/components/device-preview'
 import { ExplainedStatusPill, StatusPill } from '@/components/status-pill'
 import { VariablesPanel } from '@/components/variables-panel'
 import type { AdapterType } from '@/lib/types'
-
-describe('<DevicePreview>', () => {
-  it('shows the title and only the first four lines, and describes itself for screen readers', () => {
-    render(<DevicePreview title="AdGuard" lines={['one', 'two', 'three', 'four', 'five']} status="warn" />)
-    const preview = screen.getByRole('img')
-    expect(preview).toHaveAttribute('aria-label', 'Display preview: AdGuard, status warn. one. two. three. four')
-    expect(preview).toHaveTextContent('AdGuard')
-    expect(preview).toHaveTextContent('four')
-    expect(preview).not.toHaveTextContent('five')
-  })
-})
 
 describe('<StatusPill>', () => {
   it('always carries a text label, never colour alone', () => {

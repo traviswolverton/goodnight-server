@@ -63,7 +63,7 @@ export async function logout(): Promise<void> {
 
 /** Paths served by the backend itself (not this SPA): a full page load is
  *  needed to reach them. */
-const SERVER_PREFIXES = ['/api', '/snapshot', '/schema', '/healthz']
+const SERVER_PREFIXES = ['/api', '/healthz']
 
 /** A same-site absolute path, or undefined. Refuses `//host` and backslash tricks
  *  so `?next=` can never become an open redirect. */

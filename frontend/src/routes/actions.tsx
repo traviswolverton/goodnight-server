@@ -551,7 +551,7 @@ export function ActionEditor({
                 State beside the label (optional)
               </h3>
               <p className="text-sm text-muted-foreground">
-                Jinja2, like a card line, cut to {data.limits.state_max} characters. E.g. whether the light is on right now.
+                Jinja2, cut to {data.limits.state_max} characters. E.g. whether the light is on right now.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

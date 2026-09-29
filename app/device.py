@@ -40,7 +40,6 @@ import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from app.actions import get_action
-from app.mqtt import CONNECT_TIMEOUT_SECONDS
 from app.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -48,6 +47,9 @@ logger = logging.getLogger(__name__)
 NUM_BUTTONS = 8
 PressKind = Literal["short", "long"]
 SoundName = Literal["armed", "running", "success", "failure", "cancel"]
+
+#: How long one broker connect attempt may take.
+CONNECT_TIMEOUT_SECONDS = 5.0
 
 #: How long an armed `confirm` action waits for its second press.
 CONFIRM_SECONDS = 5.0

@@ -26,18 +26,11 @@ await audit('login (light)')
 await t.login(ADMIN.u, ADMIN.p)
 for (const theme of ['light', 'dark']) {
   await setTheme(theme)
-  for (const p of ['/', '/device', '/buttons', '/cards', '/actions', '/adapters', '/users', '/mqtt', '/profile']) {
+  for (const p of ['/', '/device', '/buttons', '/actions', '/adapters', '/users', '/mqtt', '/profile']) {
     await goto(p)
     await page.waitForFunction(() => !document.querySelector('[aria-busy=true]'), { timeout: 8000 }).catch(() => {})
     await audit(`${p} (${theme})`)
   }
-
-  await goto('/cards')
-  await page.locator('::-p-aria(Insert a variable in line 1)').click()
-  await page.waitForSelector('[role=dialog] [aria-label="Filter variables"]')
-  await page.locator('[role=dialog] button ::-p-text(adguard_main)').click()
-  await audit(`variables panel (${theme})`)
-  await page.keyboard.press('Escape')
 
   await goto('/adapters')
   await page.locator('::-p-aria(Add adapter)').click()

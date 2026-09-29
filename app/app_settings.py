@@ -11,8 +11,7 @@ effect a little later).
 What's deliberately NOT here: anything that can lock you out beyond
 what the Settings page guards against (DATABASE_URL, MQTT — those are the
 Connections page, with their own tests), SECRETS_MASTER_KEY (it unlocks
-this very file's neighbours), the first-admin pair (bootstrap only),
-SNAPSHOT_SIGNING_KEY (a secret with a safe random default), the MQTT
+this very file's neighbours), the first-admin pair (bootstrap only), the MQTT
 topic names (a contract with the device's firmware) and the Compose-only
 values (APP_PORT, APP_BIND, APP_UID, COMPOSE_PROFILES).
 """
@@ -58,19 +57,6 @@ class Field:
 FIELDS: tuple[Field, ...] = (
     Field("poll_interval_seconds", "Poll interval", "Polling",
           "How often every adapter is read.", "number", 5, 3600, "seconds"),
-    Field("heartbeat_interval_seconds", "Heartbeat", "Polling",
-          "Republish the status at least this often even when nothing changed, so the device "
-          "can tell the server is alive. Must be at least the poll interval.",
-          "number", 10, 3600, "seconds"),
-
-    Field("snapshot_width", "Width", "Camera snapshots",
-          "Size of the camera snapshots behind a camera alert's link. The bedside device's own "
-          "screen can't show them; this is for anything else that follows the links.",
-          "integer", 80, 1920, "px"),
-    Field("snapshot_height", "Height", "Camera snapshots",
-          "See width.", "integer", 60, 1080, "px"),
-    Field("snapshot_url_ttl_seconds", "Link lifetime", "Camera snapshots",
-          "How long a camera alert's snapshot link works.", "integer", 60, 86400, "seconds"),
 
     Field("session_idle_hours", "Sign out after idle", "Sign-in and security",
           "A session ends after this long without use.", "number", 0.25, 720, "hours"),
@@ -149,12 +135,6 @@ def coerce(key: str, raw: object) -> object:
     if key == "ollama_model" and not text:
         raise SettingsError(key, "Model is required")
     return text
-
-
-def check_combination(values: dict[str, object]) -> None:
-    """Rules across fields, on the full set of values after a change."""
-    if float(values["heartbeat_interval_seconds"]) < float(values["poll_interval_seconds"]):
-        raise SettingsError("heartbeat_interval_seconds", "Heartbeat must be at least the poll interval")
 
 
 # --- The saved file, and applying it -----------------------------------------

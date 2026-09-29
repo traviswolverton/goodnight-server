@@ -25,10 +25,6 @@ class Settings(BaseSettings):
     # also what the bundled broker provisions (mosquitto/entrypoint.sh).
     mqtt_client_username: str | None = None
     mqtt_client_password: str | None = None
-    mqtt_status_topic: str = "bedside/status"
-    mqtt_camera_alert_topic: str = "bedside/alert/camera"
-    # Actions (app/actions.py): the display publishes to the first, this
-    # service replies on the second.
     # The bedside device itself (app/device.py): its settings go out on
     # the first (retained); it reports on the rest.
     mqtt_device_config_topic: str = "bedside/config"
@@ -44,15 +40,14 @@ class Settings(BaseSettings):
     # blank turns it off.
     ha_discovery_prefix: str = "homeassistant"
 
-    # Aggregator loop timing
+    # How often every adapter is polled (app/aggregator.py).
     poll_interval_seconds: float = 15.0
-    heartbeat_interval_seconds: float = 45.0
 
     # Postgres (users / sessions / audit log — docs/plan-ui-and-auth.md).
     # SQLAlchemy async URL, e.g. postgresql+asyncpg://user:pass@postgres:5432/db
     # (percent-encode any special characters in the password). None disables
-    # everything that needs the database; the aggregator and MQTT publishing
-    # never depend on it — see app/db.py.
+    # everything that needs the database; adapter polling and the device
+    # link never depend on it — see app/db.py.
     database_url: str | None = None
 
     # --- Authentication (docs/plan-ui-and-auth.md) -----------------------
@@ -73,21 +68,12 @@ class Settings(BaseSettings):
     session_idle_hours: float = 24.0
     session_max_days: float = 14.0
 
-    # Signs the /snapshot links embedded in camera alerts so the ESP32 (no
-    # auth, plain HTTP) can fetch them without a login. Unset = a random key
-    # per process, which is fine: links are short-lived and only need to
-    # survive until the display fetches them (a restart just invalidates any
-    # in-flight ones).
-    snapshot_signing_key: str | None = None
-    snapshot_url_ttl_seconds: int = 600
-
     # Built React app (frontend/dist). Blank = <repo>/frontend/dist, which is
     # where the Docker image puts it. See app/spa.py.
     frontend_dist_path: str | None = None
 
     # Config file locations
     adapters_config_path: str = "config/adapters.yaml"
-    cards_config_path: str = "config/cards.yaml"
     actions_config_path: str = "config/actions.yaml"
     # Dimmer settings and button bindings for the bedside device (app/device.py).
     device_config_path: str = "config/device.yaml"
@@ -102,21 +88,11 @@ class Settings(BaseSettings):
     # here (app/app_settings.py).
     app_settings_path: str = "config/settings.yaml"
 
-    # Frigate snapshot proxy (see DESIGN.md "Camera / Frigate integration").
-    # Landscape (320x240) to match the ESP32 client's CAMERA screen, which
-    # runs the same landscape orientation as HOME/MENU (TFT_eSPI rotation) —
-    # a portrait snapshot here would letterbox down to a thin strip on a
-    # screen that doesn't share its aspect ratio. Confirmed 2026-09-20 with
-    # the desk-dashboard-esp32 side, which built CAMERA screen decode
-    # straight to a 320x240 framebuffer.
-    snapshot_width: int = 320
-    snapshot_height: int = 240
-
     # AI-assisted template generation (app/ai_assist.py) — Ollama runs on
     # the host, not in this compose stack; see docker-compose.yml's
     # extra_hosts entry for how the container reaches it. None entirely
-    # disables the feature (the generate endpoints 503) rather than
-    # failing every request against an unreachable default host.
+    # disables the feature rather than failing every request against an
+    # unreachable default host.
     ollama_base_url: str | None = "http://host.docker.internal:11434"
     ollama_model: str = "qwen2.5:14b"
     """Was llama3.1:8b until 2026-09-23. Asked to keep a card's two lines

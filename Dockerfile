@@ -13,11 +13,6 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Pillow needs these at runtime for JPEG support on slim images.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libjpeg62-turbo \
-    && rm -rf /var/lib/apt/lists/*
-
 # Shown in the web UI footer (compose passes APP_VERSION through).
 ARG APP_VERSION=dev
 ENV APP_VERSION=$APP_VERSION
@@ -27,7 +22,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ app/
 # config/ is a runtime volume mount (see docker-compose.yml), not baked in.
-COPY schema/ schema/
 # Served by app/spa.py (default location: <repo>/frontend/dist).
 COPY --from=frontend /frontend/dist frontend/dist
 

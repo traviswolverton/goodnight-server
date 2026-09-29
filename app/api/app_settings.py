@@ -22,7 +22,6 @@ from app.app_settings import (
     BY_KEY,
     SettingsError,
     apply_value,
-    check_combination,
     coerce,
     read_saved,
     write_saved,
@@ -61,7 +60,8 @@ async def get_settings(request: Request) -> dict[str, object]:
 async def save_settings(request: Request, response: Response, body: SaveSettings) -> dict[str, object]:
     baseline = request.app.state.saved_settings.baseline
     try:
-        stored = read_saved(settings.app_settings_path)
+        # Settings that no longer exist (removed in an update) are dropped.
+        stored = {k: v for k, v in read_saved(settings.app_settings_path).items() if k in BY_KEY}
         effective = {key: getattr(settings, key) for key in BY_KEY}
         for key, raw in body.values.items():
             if raw is None:
@@ -71,7 +71,6 @@ async def save_settings(request: Request, response: Response, body: SaveSettings
                 effective[key] = baseline[key]
             else:
                 stored[key] = effective[key] = coerce(key, raw)
-        check_combination(effective)
     except SettingsError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

@@ -6,8 +6,8 @@ const { page, check, shot, settle, path, goto } = t
 const url = () => new URL(page.url())
 
 await t.step('sign-in', async () => {
-  await goto('/cards')
-  check('anonymous /cards -> /login remembering the target', url().pathname === '/login' && url().searchParams.get('next') === '/cards', page.url())
+  await goto('/buttons')
+  check('anonymous /buttons -> /login remembering the target', url().pathname === '/login' && url().searchParams.get('next') === '/buttons', page.url())
   check('login screen renders', !!(await page.$('#username')) && (await page.title()).startsWith('Sign in'))
   await shot('s1-login')
 
@@ -22,14 +22,14 @@ await t.step('sign-in', async () => {
   await page.type('#password', ADMIN.p)
   await page.click('button[type=submit]')
   await settle()
-  check('login returns to the page you asked for', path() === '/cards', path())
-  check('page title follows the page', (await page.title()) === 'Cards · Bedside Dashboard', await page.title())
+  check('login returns to the page you asked for', path() === '/buttons', path())
+  check('page title follows the page', (await page.title()) === 'Buttons · Bedside Dashboard', await page.title())
 })
 
 await t.step('navigation', async () => {
   const nav = await page.$$eval('aside nav a', (a) => a.map((x) => x.textContent.trim()))
-  check('admin sees all ten sections', nav.join(',') === 'Home,Device,Buttons,Cards,Actions,Adapters,Connections,Settings,Users,MQTT reference', nav.join(','))
-  check('current section is marked for assistive tech', (await page.$eval('aside nav a[aria-current=page]', (a) => a.textContent.trim()).catch(() => '')) === 'Cards')
+  check('admin sees all nine sections', nav.join(',') === 'Home,Device,Buttons,Actions,Adapters,Connections,Settings,Users,MQTT reference', nav.join(','))
+  check('current section is marked for assistive tech', (await page.$eval('aside nav a[aria-current=page]', (a) => a.textContent.trim()).catch(() => '')) === 'Buttons')
   await goto('/actions')
   check('deep link + refresh keeps the session and route', path() === '/actions' && (await page.$eval('h1', (h) => h.textContent)) === 'Actions')
   await goto('/nope/nothing')
@@ -59,7 +59,7 @@ await t.step('mobile', async () => {
   await page.click('button[aria-label="Open menu"]')
   await page.waitForSelector('[role=dialog] nav')
   await sleep(700)
-  check('drawer is fully on screen with every link', (await page.$$eval('[role=dialog] nav a', (a) => a.length)) === 10 && (await page.$eval('[role=dialog]', (d) => { const b = d.getBoundingClientRect(); return b.left >= 0 && b.width > 200 })))
+  check('drawer is fully on screen with every link', (await page.$$eval('[role=dialog] nav a', (a) => a.length)) === 9 && (await page.$eval('[role=dialog]', (d) => { const b = d.getBoundingClientRect(); return b.left >= 0 && b.width > 200 })))
   await page.keyboard.press('Escape')
   await page.setViewport({ width: 1280, height: 900 })
 })

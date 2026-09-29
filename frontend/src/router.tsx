@@ -87,15 +87,6 @@ const buttonsRoute = createRoute({
   component: lazyRouteComponent(() => import('@/routes/buttons'), 'ButtonsPage'),
 })
 
-const cardsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: '/cards',
-  validateSearch: (search: Record<string, unknown>): { card?: string } => ({
-    card: typeof search.card === 'string' ? search.card : undefined,
-  }),
-  component: lazyRouteComponent(() => import('@/routes/cards'), 'CardsPage'),
-})
-
 const actionsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/actions',
@@ -138,13 +129,13 @@ const usersRoute = createRoute({
 const mqttRoute = createRoute({ getParentRoute: () => appRoute, path: '/mqtt', component: lazyRouteComponent(() => import('@/routes/mqtt'), 'MqttPage') })
 const profileRoute = createRoute({ getParentRoute: () => appRoute, path: '/profile', component: lazyRouteComponent(() => import('@/routes/profile'), 'ProfilePage') })
 
-/** Old addresses (the previous editor page and the server-rendered MQTT
- *  docs) still work as bookmarks: they land on the equivalent page here. */
+/** Old addresses (the desk-era card editor and the server-rendered MQTT
+ *  docs) still work as bookmarks: they land on the nearest page here. */
 const oldEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/tools/lines-template',
   beforeLoad: () => {
-    throw redirect({ to: '/cards' })
+    throw redirect({ to: '/' })
   },
 })
 const oldMqttDocsRoute = createRoute({
@@ -172,7 +163,6 @@ const routeTree = rootRoute.addChildren([
     homeRoute,
     deviceRoute,
     buttonsRoute,
-    cardsRoute,
     actionsRoute,
     adaptersRoute,
     connectionsRoute,

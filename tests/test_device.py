@@ -108,7 +108,7 @@ def test_invalid_sound_settings_are_rejected(sounds):
 
 def _link(paths, state, adapter=None):
     device, actions = paths
-    agg = Aggregator(adapters=[adapter or SwitchAdapter()], publisher=None, client=None)
+    agg = Aggregator(adapters=[adapter or SwitchAdapter()], client=None)
     return MqttDeviceLink(state, ActionRunner(agg, str(actions)), str(device))
 
 

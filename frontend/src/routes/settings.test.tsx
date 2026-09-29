@@ -17,7 +17,7 @@ const field = (over: Partial<SettingField> & Pick<SettingField, 'key' | 'label' 
 const data: SettingsResponse = {
   fields: [
     field({ key: 'poll_interval_seconds', label: 'Poll interval', kind: 'number', value: 15, baseline: 15, unit: 'seconds', source: 'env' }),
-    field({ key: 'heartbeat_interval_seconds', label: 'Heartbeat', kind: 'number', value: 90, baseline: 45, source: 'app' }),
+    field({ key: 'audit_retention_days', label: 'Keep audit log for', kind: 'integer', value: 90, baseline: 365, source: 'app' }),
     field({ key: 'https_only', label: 'HTTPS only', kind: 'boolean', group: 'Sign-in and security', value: false, baseline: false }),
     field({ key: 'ollama_base_url', label: 'Ollama URL', kind: 'text', group: 'AI assist', value: 'http://ollama:11434' }),
     field({ key: 'ollama_model', label: 'Model', kind: 'text', group: 'AI assist', value: 'qwen2.5:14b' }),
@@ -63,24 +63,24 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     await user.clear(poll)
     await user.type(poll, '30')
-    await user.click(screen.getByRole('button', { name: /Reset/ })) // only the heartbeat is "Set here"
+    await user.click(screen.getByRole('button', { name: /Reset/ })) // only the audit log setting is "Set here"
     expect(screen.getByText('2 unsaved changes')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(putBody()).toEqual({ values: { poll_interval_seconds: '30', heartbeat_interval_seconds: null } })
+    expect(putBody()).toEqual({ values: { poll_interval_seconds: '30', audit_retention_days: null } })
     expect(toast.success).toHaveBeenCalled()
   })
 
   it('shows a refused save’s reason', async () => {
     const user = userEvent.setup()
     fetchMock.mockImplementation(async (_url, init) =>
-      init?.method === 'PUT' ? json({ detail: 'Heartbeat must be at least the poll interval' }, 400) : json(data),
+      init?.method === 'PUT' ? json({ detail: 'Poll interval: must be at most 3600' }, 400) : json(data),
     )
     renderPage()
     const poll = await screen.findByLabelText('Poll interval')
     await user.clear(poll)
-    await user.type(poll, '300')
+    await user.type(poll, '9999')
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await screen.findByText('Heartbeat must be at least the poll interval')).toBeInTheDocument()
+    expect(await screen.findByText('Poll interval: must be at most 3600')).toBeInTheDocument()
   })
 
   it('won’t let HTTPS only be switched on from a plain-HTTP page', async () => {

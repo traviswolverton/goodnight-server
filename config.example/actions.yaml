@@ -1,9 +1,9 @@
-# The display's Actions menu, in order: turn the encoder to pick one, press
-# to run it. The display only ever sends an action's `id`; everything that
-# does something lives here, on the server (see app/actions.py and
-# DESIGN.md's "Actions" section). Easiest way to edit: the web UI's Actions
-# page — it has entity pickers and a Run button, and saves apply on the next
-# poll with no restart.
+# Things a button on the device can make happen. Bind them to buttons on the
+# web UI's Buttons page (config/device.yaml); the device only says which
+# button was pressed, and everything that does something lives here, on the
+# server (see app/actions.py and DESIGN.md's "Actions" section). Easiest way
+# to edit: the web UI's Actions page — it has entity pickers and a Run
+# button, and saves apply straight away.
 #
 # `adapter` names an adapter from adapters.yaml that can run actions (today:
 # type home_assistant). `kind` is one of:
@@ -11,8 +11,9 @@
 #   script  — run the `target` script.* entity, `data` as its variables
 #   event   — fire `desk_dashboard_action` with {action: <id>, label: ...}
 #             for a Home Assistant automation to handle
-# `confirm: true` makes the display ask for a second press first.
-# `state_template` (Jinja2, like a card line) is shown beside the label.
+# `confirm: true` asks for the same press again first (within 5 s).
+# `verify` checks it really happened: {entities: [...], state: closed, timeout: 45}.
+# `state_template` (Jinja2) is shown beside the label on the Actions page.
 #
 # Example:
 #   - id: desk_lamp

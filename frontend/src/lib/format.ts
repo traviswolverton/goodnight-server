@@ -24,11 +24,3 @@ export function formatDateTime(iso: string | null | undefined): string {
   const date = new Date(iso)
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
 }
-
-/** A card's line inputs as templates to send: each one trimmed, blank
- *  ones at the end dropped. A blank one in the middle stays, as ''. */
-export function templatesFromLines(lines: string[]): string[] {
-  const templates = lines.map((line) => line.trim())
-  while (templates.length > 0 && templates.at(-1) === '') templates.pop()
-  return templates
-}
