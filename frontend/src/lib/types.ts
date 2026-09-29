@@ -20,16 +20,6 @@ export interface CardsResponse {
   line_max_chars: number[]
 }
 
-export interface PixelInfo {
-  index: number
-  color_template: string | null
-  resolved_color: string | null
-}
-export interface PixelsResponse {
-  context: Context
-  pixels: PixelInfo[]
-}
-
 export interface Diagnostic {
   template: string
   rendered: string | null
@@ -139,7 +129,6 @@ export interface StatusPayload {
   ts: number
   overall: { level: Status; text: string }
   services: ServiceReading[]
-  pixels: Record<string, string | null>
 }
 
 export interface OverviewAdapter {

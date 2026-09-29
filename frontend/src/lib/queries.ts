@@ -10,7 +10,6 @@ import type {
   DeviceResponse,
   MqttReference,
   Overview,
-  PixelsResponse,
   SettingsResponse,
   StatusPayload,
 } from '@/lib/types'
@@ -20,12 +19,6 @@ export const cardsQuery = queryOptions({
   queryKey: ['cards'],
   queryFn: () => api<CardsResponse>('/api/cards'),
   refetchInterval: 15_000, // the variable table is live data
-})
-
-export const pixelsQuery = queryOptions({
-  queryKey: ['pixels'],
-  queryFn: () => api<PixelsResponse>('/api/pixels'),
-  refetchInterval: 15_000,
 })
 
 export const actionsQuery = queryOptions({
@@ -38,12 +31,6 @@ export const deviceQuery = queryOptions({
   queryKey: ['device'],
   queryFn: () => api<DeviceResponse>('/api/device'),
   refetchInterval: 5_000, // live readings and presses
-})
-
-export const swatchesQuery = queryOptions({
-  queryKey: ['color-swatches'],
-  queryFn: () => api<Record<string, string>>('/api/color-swatches'),
-  staleTime: Infinity,
 })
 
 export const adaptersQuery = queryOptions({

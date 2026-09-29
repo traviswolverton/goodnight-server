@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { AdapterFields, TestResult } from '@/components/adapter-form'
-import { DevicePreview, PixelStrip } from '@/components/device-preview'
+import { DevicePreview } from '@/components/device-preview'
 import { ExplainedStatusPill, StatusPill } from '@/components/status-pill'
 import { VariablesPanel } from '@/components/variables-panel'
 import type { AdapterType } from '@/lib/types'
@@ -15,16 +15,6 @@ describe('<DevicePreview>', () => {
     expect(preview).toHaveTextContent('AdGuard')
     expect(preview).toHaveTextContent('four')
     expect(preview).not.toHaveTextContent('five')
-  })
-})
-
-describe('<PixelStrip>', () => {
-  it('renders five pixels, lit or off', () => {
-    render(<PixelStrip pixels={{ '0': '#1D9E75', '1': null, '2': '#C0392B', '3': null, '4': null }} />)
-    const pixels = screen.getByRole('img', { name: 'Indicator pixels' }).children
-    expect(pixels).toHaveLength(5)
-    expect(pixels[0]).toHaveAttribute('title', 'Pixel 0: #1D9E75')
-    expect(pixels[1]).toHaveAttribute('title', 'Pixel 1: off')
   })
 })
 

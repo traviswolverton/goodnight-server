@@ -3,7 +3,7 @@
 Authorization is applied here, per router, so a new route inherits it
 by default (tests/test_auth_coverage.py enforces that nothing is left open):
 
-- cards / pixels / actions / device / status / overview / mqtt-reference: any logged-in user may
+- cards / actions / device / status / overview / mqtt-reference: any logged-in user may
   read; only admins may write
 - previews: any logged-in user (they render, never save)
 - adapters: admins only, even reads — they expose internal hosts/usernames
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.api import actions, adapters, app_settings, auth, cards, connections, device, overview, pixels, status, system, users
+from app.api import actions, adapters, app_settings, auth, cards, connections, device, overview, status, system, users
 from app.auth.deps import audit_writes, require_admin, require_admin_for_writes, require_user
 
 router = APIRouter(prefix="/api")
@@ -25,13 +25,11 @@ router.include_router(auth.router)
 
 _writes = [Depends(require_admin_for_writes), Depends(audit_writes)]
 router.include_router(cards.router, dependencies=_writes)
-router.include_router(pixels.router, dependencies=_writes)
 router.include_router(actions.router, dependencies=_writes)
 router.include_router(device.router, dependencies=_writes)
 router.include_router(status.router, dependencies=[Depends(require_user)])
 router.include_router(overview.router, dependencies=[Depends(require_user)])
 router.include_router(cards.preview_router, dependencies=[Depends(require_user)])
-router.include_router(pixels.preview_router, dependencies=[Depends(require_user)])
 
 _admin = [Depends(require_admin), Depends(audit_writes)]
 router.include_router(adapters.router, dependencies=_admin)

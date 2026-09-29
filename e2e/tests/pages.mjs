@@ -19,7 +19,6 @@ await step('home', async () => {
   const boxes = await page.$$eval('[role=img][aria-label^="Display preview"]', (els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.top)] }))
   const overlaps = boxes.some((a, i) => boxes.some((b, j) => i < j && a[2] === b[2] && a[1] > b[0]))
   check('home: card previews sit side by side without overlapping', boxes.length >= 2 && !overlaps, JSON.stringify(boxes))
-  check('home: pixel strip shown', !!(await page.$('[role=img][aria-label="Indicator pixels"]')))
   await shot('h1-home')
 })
 
@@ -102,24 +101,6 @@ await step('cards', async () => {
   await shot('c1-cards')
 })
 
-await step('pixels', async () => {
-  await goto('/pixels')
-  check('pixels: 5 pixel tiles', (await page.$$('[role=group][aria-label=Pixels] button')).length === 5)
-  await page.locator('[role=group][aria-label=Pixels] button ::-p-text(Pixel 1)').click(); await settle()
-  check('pixels: selection in URL', /pixel=1/.test(path()), path())
-  await page.locator('::-p-aria(Use green (#1D9E75))').click()
-  check('pixels: clicking a swatch fills the template', (await page.$eval('#pixel-template-input', (e) => e.value)) === '#1D9E75')
-  await click('Preview'); await sleep(700)
-  check('pixels: preview resolves the colour', /#1D9E75/.test(await text()))
-  await click('Save & apply'); await sleep(700)
-  check('pixels: saved (resolved colour live)', (await api('/api/pixels')).body.pixels.find((p) => p.index === 1).resolved_color === '#1D9E75')
-  await page.locator('#pixel-template-input').fill('not a colour'); await click('Preview'); await sleep(700)
-  check('pixels: a non-colour result is flagged as "pixel would be off"', /would be off/.test(await text()))
-  await click('Clear (turn off)'); await sleep(700)
-  check('pixels: cleared', (await api('/api/pixels')).body.pixels.find((p) => p.index === 1).resolved_color === null)
-  await shot('p1-pixels')
-})
-
 await step('actions', async () => {
   await goto('/actions')
   // The seed has no Home Assistant adapter, so nothing can run an action yet.
@@ -184,7 +165,7 @@ await step('users', async () => {
   check('users: created a viewer', /viewer1/.test(await text()))
   await page.locator('[role=tab] ::-p-text(Activity)').click(); await sleep(700)
   const t = await text()
-  check('users: activity log shows changes (who/what)', /Created a user/.test(t) && /Saved a pixel’s colour|Saved a card’s title|Showed or hid a card/.test(t) && /Signed in/.test(t) && !/api\.remove_adapter_endpoint\s/.test(t.replace(/\s+/g,' ')+' '), t.slice(0, 300))
+  check('users: activity log shows changes (who/what)', /Created a user/.test(t) && /Saved a card’s title|Showed or hid a card/.test(t) && /Signed in/.test(t) && !/api\.remove_adapter_endpoint\s/.test(t.replace(/\s+/g,' ')+' '), t.slice(0, 300))
   await shot('u1-users')
 })
 
@@ -234,7 +215,7 @@ await step('viewer', async () => {
 await step('mobile', async () => {
   await page.setViewport({ width: 390, height: 800, isMobile: true, hasTouch: true })
   await login(ADMIN.u, ADMIN.p)
-  for (const p of ['/', '/device', '/cards', '/pixels', '/adapters', '/users', '/mqtt', '/profile']) {
+  for (const p of ['/', '/device', '/cards', '/adapters', '/users', '/mqtt', '/profile']) {
     await goto(p)
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
     check(`mobile: ${p} has no horizontal scroll`, fits, `scrollWidth=${await page.evaluate(() => document.documentElement.scrollWidth)}`)

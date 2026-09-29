@@ -23,7 +23,7 @@ services:
       - "${APP_BIND:-0.0.0.0}:${APP_PORT:-8001}:8000"
     # Runs as this UID:GID instead of root — set it to whatever owns
     # /opt/bedside-dashboard-data/config on the host (`id -u`:`id -g`), since
-    # that's the only thing the container writes to (cards/pixels/adapters
+    # that's the only thing the container writes to (cards/adapters
     # config, encrypted secrets — see app/config.py, app/secret_store.py).
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
@@ -75,7 +75,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      # Live config (adapters/cards/pixels/secrets.enc.yaml) lives OUTSIDE
+      # Live config (adapters/cards/secrets.enc.yaml) lives OUTSIDE
       # this repo checkout — not git-tracked, edited only through the
       # running app's web UI — so live edits never show up
       # as git diffs. config.example/ in the repo is the template for a

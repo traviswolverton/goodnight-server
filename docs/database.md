@@ -1,7 +1,7 @@
 # Database
 
 The app keeps users, sessions and the audit log in Postgres (see
-`app/db.py`). Everything else — adapters, cards, pixels, secrets — stays in
+`app/db.py`). Everything else — adapters, cards, secrets — stays in
 `/opt/bedside-dashboard-data/config`. The app works without the database
 (the poll loop and MQTT keep running); only login and the web UI need it.
 

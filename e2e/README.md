@@ -19,11 +19,11 @@ again. Screenshots land in `e2e/shots/` (git-ignored).
 | File | Covers |
 |---|---|
 | `tests/shell.mjs` | Sign-in and redirects, navigation, theme, mobile drawer, sign-out (session really ends), security headers, open-redirect refusal |
-| `tests/pages.mjs` | Every page as admin and as a viewer: cards, pixels, actions, adapters, users + activity log, MQTT reference, password change, old bookmarks, phone-width layout; secrets never reach the browser |
+| `tests/pages.mjs` | Every page as admin and as a viewer: cards, actions, adapters, users + activity log, MQTT reference, password change, old bookmarks, phone-width layout; secrets never reach the browser |
 | `tests/a11y.mjs` | axe-core WCAG 2.1 A/AA audit of every page and dialog, light and dark |
 
 The seed config in `seed/` is copied fresh for every run (one adapter pointing
-at a host that doesn't exist, three cards, no pixels) — the tests mutate it, so
+at a host that doesn't exist, three cards) — the tests mutate it, so
 never point these at real config. The suite creates its own admin from
 throwaway credentials.
 

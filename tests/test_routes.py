@@ -59,7 +59,6 @@ def test_mqtt_reference_live_example_is_null_until_something_was_polled_then_rea
     payload = StatusPayload(
         overall=Overall(level="ok", text="All systems normal"),
         services=[ServiceReading(name="adguard_main", status="ok", title="AdGuard", lines=["1782070 blocked"])],
-        pixels={"0": "#1D9E75", "1": None, "2": None, "3": None, "4": None},
     )
     example = _client(latest_payload=payload).get("/api/mqtt-reference").json()["status_example"]
     assert example["services"][0]["lines"] == ["1782070 blocked"]
@@ -85,7 +84,7 @@ def test_overview_reports_adapter_health_without_leaking_connection_details():
                 SimpleNamespace(name="nas", type_name="truenas", api_key="sekrit")]
     results = {"adguard_main": AdapterResult(name="adguard_main", status="warn", detail="3 blocked")}
     payload = StatusPayload(ts=1700000000.0, overall=Overall(level="warn", text="1 warning"),
-                            services=[], pixels={str(i): None for i in range(5)})
+                            services=[])
     resp = _overview_client(results, adapters, payload).get("/api/overview")
     body = resp.json()
     assert body["adapters"] == [
@@ -155,7 +154,7 @@ def test_overview_reason_prefers_the_adapters_own_and_never_shows_a_raw_fetch_er
         "kuma": AdapterResult(name="kuma", status="ok", detail="71 up"),
     }
     payload = StatusPayload(ts=1700000000.0, overall=Overall(level="warn", text="x"),
-                            services=[], pixels={str(i): None for i in range(5)})
+                            services=[])
     reasons = {a["name"]: a["reason"] for a in
                _overview_client(results, adapters, payload).get("/api/overview").json()["adapters"]}
     assert reasons["ha"] == "Home Assistant has no reading for: Garage."
@@ -168,6 +167,6 @@ def test_overview_lists_adapters_alphabetically():
 
     adapters = [SimpleNamespace(name=n, type_name="x") for n in ("unifi", "Adguard_backup", "frigate")]
     payload = StatusPayload(ts=1700000000.0, overall=Overall(level="ok", text="x"),
-                            services=[], pixels={str(i): None for i in range(5)})
+                            services=[])
     names = [a["name"] for a in _overview_client({}, adapters, payload).get("/api/overview").json()["adapters"]]
     assert names == ["Adguard_backup", "frigate", "unifi"]

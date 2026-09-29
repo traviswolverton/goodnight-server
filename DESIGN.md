@@ -46,8 +46,7 @@ here so far:
 - **Sensors in templates.** The `bedside_device` adapter reads the latest
   report: `{{ adapters.<name>.temperature_c }}`, `temperature_f`,
   `humidity`, `lux`, `screen`, `online`, `last_report_seconds`.
-- **Not yet adapted:** the status payload, Cards limits, Pixels (the
-  bedside unit has no LEDs), the camera alert and the Actions menu are
+- **Not yet adapted:** the status payload, Cards limits, the camera alert and the Actions menu are
   still the desk unit's. The next step is a small-screen payload (3 lines
   of 21 characters on a 128×32 OLED) and trimming what doesn't apply.
 
@@ -74,8 +73,7 @@ publish decision happens, etc.), see
 [`docs/pipeline.md`](docs/pipeline.md).
 
 ### Cards: named slots in `services[]`, with NO relationship to Adapters
-Went through the same progression as Pixels (below), for the same
-underlying reason, culminating 2026-09-19 in the current design:
+Went through a progression culminating 2026-09-19 in the current design:
 
 1. **First**: a Card was created automatically, one per Adapter, named
    after it — `services[]` was really just "adapters, dressed up."
@@ -88,8 +86,8 @@ underlying reason, culminating 2026-09-19 in the current design:
 3. **Current**: a Card (`config/cards.yaml`, `CardConfig`) has **no
    `sources:` at all** — just a `name`, optional `title`,
    `lines_template`, `status_template`, and a `render` toggle. Both
-   templates render against the exact same global adapter context Pixels
-   get (`build_multi_source_context()`, fed every currently loaded
+   templates render against the global adapter context
+   (`build_multi_source_context()`, fed every currently loaded
    adapter) — a Card can reference any combination of adapters, or none
    at all, with zero declared link. **A Card only exists if it's listed
    in `cards.yaml` at all** — no automatic default any more; an adapter
@@ -110,7 +108,6 @@ underlying reason, culminating 2026-09-19 in the current design:
    no adapter-derived fold or worst-of-sources computation left to fall
    back to, since there's no declared relationship to any adapter any
    more. `status_template` must render to exactly `"ok"`/`"warn"`/`"down"`
-   (same strict validation as a Pixel's `color_template` validates hex)
    or it falls back to `"ok"`.
 
 **Why combining several adapters into one card still matters** (unchanged
@@ -124,7 +121,7 @@ full pipeline this produces.
 
 **Consequence worth knowing**: since there's no automatic default any
 more, a freshly added adapter with no matching card publishes nowhere —
-same "nothing lights up for free" rule Pixels already follow.
+nothing lights up for free.
 
 ### Candidate adapters (build incrementally, start with 2-3)
 > ~~⚠ This is 10 adapters, client hard-caps `services[]` at 8~~ — first
@@ -170,69 +167,6 @@ else on the broker can change what the display shows, and the display's
 login can do nothing else there (`docs/mqtt-broker.md`). The bundled
 broker remains as the `local-mqtt` compose profile.
 
-## Pixels: the 5 physical LEDs, with NO relationship to Cards
-This went through two earlier designs before landing here (2026-09-19,
-same day, in fairly quick succession) — worth knowing the history because
-each rejected version is a plausible-looking trap:
-
-1. **First**: `pixel_map.yaml` mapped a pixel index straight to a card
-   *name*, and the pixel's color was just `STATUS_COLORS[that card's
-   status]`. Simple, but coupled a pixel's color 1:1 to a card's health.
-2. **Second**: kept the name-based `pixel_map.yaml`, but let a `CardConfig`
-   set its own `color_template` (Jinja2 -> `#RRGGBB`) so a card's pixel
-   could mean something other than plain status — e.g. a calendar card
-   rendering red for "event today". Better, but a pixel was still only
-   ever *one card's* color — combining several adapters into one pixel
-   still meant combining them into a visible Card first, and a Card's own
-   text/severity had no reason to be entangled with what its pixel showed.
-3. **Current**: a Pixel is its own independent concept
-   (`app/pixels.py`, `PixelConfig`) — an index (0-4) and an optional
-   `color_template`, with **no `sources:`, no card name, no link to
-   `services[]`/Cards of any kind**. Its template renders against every
-   currently loaded adapter directly, namespaced `adapters.<name>.<field>`
-   (`build_multi_source_context()` fed the *entire* adapter set, not one
-   card's subset):
-   ```yaml
-   # config/pixels.yaml
-   pixels:
-     - index: 0
-       color_template: "{{ '#C0392B' if adapters.adguard_main.status == 'down' else '#1D9E75' }}"
-     - index: 4
-       color_template: "{{ '#8E44AD' }}"   # a hardcoded/constant color is just as valid — no adapter required
-   ```
-   An index with no entry (or, as shipped, an empty `pixels.yaml`) is
-   simply off. A template that fails to render, renders empty, or
-   doesn't produce a real 6-digit hex is also just off — no status-based
-   fallback exists any more, since a pixel has no card/status to fall
-   back to. `config/pixels.yaml` is hot-reloadable — `app.config.
-   load_pixels()` re-reads it fresh every poll, the same property the
-   old `pixel_map.yaml` had, and unlike a card's `lines_template` there's
-   no live object to hot-patch: a save just needs to land on disk.
-   Editable live on the web UI's Pixels page (its own
-   pixel selector, its own live variable list — every loaded adapter, not
-   scoped to any card — preview + Save & Apply, no restart), with a small
-   set of example swatches as starting points; the field itself accepts
-   any raw hex, not a fixed palette.
-
-**Why this, and not tying color to status**: `overall.level`/
-`overall.text` (the banner) are driven by the worst `status` across all
-cards, and that has a real, pre-existing quirk worth knowing about —
-AdGuard's `status` flips to `"warn"` purely from `percent_blocked < 5.0`
-(`app/adapters/adguard.py`), a business-metric threshold, not an actual
-failure (the fetch succeeded, AdGuard is up). That's enough to flip the
-whole banner to "adguard_main degraded" even when every other card is
-perfectly healthy. A pixel deriving its color from any card's `status` —
-however indirectly — would inherit that same quirk. Pixels bypass it
-entirely by not referencing `status` (or Cards) at all; a template is
-free to read whatever raw adapter fields actually matter (e.g.
-`adapters.adguard_main.percent_blocked` directly) instead of the
-already-lossy `status` enum.
-
-**Consequence worth knowing**: since no automatic status-based color
-exists any more, a freshly deployed or freshly cleared `pixels.yaml`
-means every LED is off until someone explicitly writes a `color_template`
-for it — nothing lights up "for free" the way it used to.
-
 ## Actions (two-way: the display asks, the server acts)
 Added 2026-09-26 with the Home Assistant adapter. The display's MENU gets
 an **Actions** item listing `actions[]` from the status payload; turning
@@ -266,7 +200,7 @@ Plus `confirm` (ask for a second press first — locks, garage doors) and
 an optional `state_template`, rendered each poll against the same context
 as cards (usually `{{ adapters.home_assistant.entities['light.desk'].state }}`)
 and shown beside the label. `actions.yaml` is re-read every poll and every
-run, like `pixels.yaml`: saves apply without a restart.
+run: saves apply without a restart.
 
 **Which adapters run actions:** any whose `action_kinds` is non-empty
 (`Adapter.run_action()` in `app/adapters/base.py`) — today only
@@ -277,8 +211,8 @@ run, like `pixels.yaml`: saves apply without a restart.
 11-byte state (cut server-side at a character boundary).
 
 ## AI-assisted template generation (app/ai_assist.py)
-Added 2026-09-19: an "AI prompt" box next to each of the three template
-kinds (Card `lines_template`/`status_template`, Pixel `color_template`)
+Added 2026-09-19: an "AI prompt" box next to each of the two template
+kinds (Card `lines_template`/`status_template`)
 in the web UI, backed by a local Ollama instance.
 
 **Design choice made explicitly, not the obvious default**: rather than
@@ -299,14 +233,10 @@ meaningful to hand over.
 **Safety property, unconditional**: the model's final answer only ever
 fills the relevant textarea/input in the editor — it is never
 auto-saved. It goes through the exact same Preview step (real Jinja2
-sandboxed render, real validation — a `color_template` still has to
-match `#RRGGBB`, a `status_template` still has to be exactly
+sandboxed render, real validation — a `status_template` still has to be exactly
 `ok`/`warn`/`down`) as anything typed by hand, so a bad or creative-but-
-wrong generation just shows a render error or falls back safely (a pixel
-goes off, a status falls back to `ok`) — confirmed live: a real
-generation once produced a malformed `'%02x%02x%00'|format(...)` color
-expression that simply failed validation and left that pixel off,
-rather than breaking anything.
+wrong generation just shows a render error or falls back safely (a status falls
+back to `ok`) rather than breaking anything.
 
 **A second, more surprising failure mode found live**: giving a model
 tools doesn't guarantee it actually uses what they returned. One real
@@ -430,13 +360,6 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
       ]
     }
   ],
-  "pixels": {
-    "0": "#1D9E75",
-    "1": "#BA7517",
-    "2": "#1D9E75",
-    "3": "#1D9E75",
-    "4": null
-  },
   "actions": [
     {"id": "desk_lamp", "label": "Desk lamp", "state": "on", "confirm": false},
     {"id": "garage", "label": "Garage door", "state": "closed", "confirm": true}
@@ -459,8 +382,7 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
   bother (`app.aggregator.resolve_card_title`). Always present, same
   enforcement pattern as `lines`: `app.models.ServiceReading.title` is
   required. **`name` itself is never repurposed for this** — it stays
-  the stable identifier `cards.yaml` uses, unrelated to Pixels (see that
-  section — a service has no link to any pixel). (The status glyph next
+  the stable identifier `cards.yaml` uses. (The status glyph next
   to the title — a colored circle/triangle/square — is drawn entirely
   client-side from `status`, confirmed live 2026-09-19; no field carries
   it, `title` is unrelated to that decision. **Updated 2026-09-24**: the
@@ -483,10 +405,6 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
   `i`, each row has its own length limit, and an empty line is sent as
   `""` rather than dropped (see "Client display limits"). Over-long lines
   aren't rejected — the editor flags them and the client cuts them off.
-- `pixels` keys are strings `"0"`-`"4"` (JSON object keys can't be bare
-  ints); `null` means off. Built entirely from each pixel's own
-  `color_template` (`config/pixels.yaml`) — completely independent of
-  `services[]`/Cards, see the Pixels section above.
 - `actions` (added 2026-09-26): the display's Actions menu, in order —
   see "Actions" below. `state` is short live text shown beside the label
   (`null` for none), cut server-side to fit; `confirm` means ask for a
@@ -717,8 +635,6 @@ the JSON schema above is.
   `desk-dashboard-esp32@20a9472`, 2026-09-17, to match the candidate-adapter
   list above before it became a real problem) **— anything past the cap is
   dropped entirely, not truncated.**
-- `pixels`: fixed at exactly 5 indices, tied to the physical LED count —
-  not really a content limit, just noted for completeness
 
 `bedside/alert/camera`:
 - `camera`: 31 chars, `snapshot_url`: 159 chars, `text`: 63 chars
@@ -728,7 +644,7 @@ No live video — ESP32 can't decode RTSP/H.264. Instead:
 - **One `frigate` adapter** (`app/adapters/frigate.py`, added from the
   Adapters tab) does both jobs over Frigate's HTTP API: `fetch()` reads
   `/api/stats` for camera/detector health (a normal status reading for
-  cards/pixels), and the optional `Adapter.poll_alerts()` hook reads
+  cards), and the optional `Adapter.poll_alerts()` hook reads
   `/api/events` and returns new `CameraAlert`s, which the aggregator
   publishes to `bedside/alert/camera` every poll. Any adapter can
   override `poll_alerts()`; the default returns nothing.
@@ -851,7 +767,7 @@ the ESP32 client needs to reach both from elsewhere on the network.
   (unlike another-stack's older Streamlit component, which predates it
   moving to compose and still runs via systemd + a venv).
 - **Config is not in git (changed 2026-09-19).** The live
-  `adapters.yaml`/`cards.yaml`/`pixels.yaml`/`secrets.enc.yaml` live in
+  `adapters.yaml`/`cards.yaml`/`secrets.enc.yaml` live in
   `/opt/desk-dashboard-data/config` on the host, mounted at `/app/config`
   — edited through the running app, so live edits never show up as git
   diffs. `config.example/` in the repo is the template for a fresh
@@ -863,7 +779,7 @@ the ESP32 client needs to reach both from elsewhere on the network.
   the non-adapter secrets (MQTT, Ollama) which stay as `${VAR}`.
   Adapters are managed from the editor's **Adapters** tab (forms
   rendered from each adapter class's `required_fields`): add, edit
-  (blank secret = keep), remove (with a warning for cards/pixels that
+  (blank secret = keep), remove (with a warning for cards that
   reference it, and its now-unused secrets deleted), and a **Test
   connection** that runs one fetch() with the values as typed without
   saving anything. Changes take effect after a restart, which the tab's

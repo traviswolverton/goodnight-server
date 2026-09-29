@@ -2,7 +2,7 @@
 script), defined in config/actions.yaml and listed on the device's
 Actions menu. See DESIGN.md "Actions".
 
-Like Cards and Pixels, an Action is plain data with no code change needed
+Like a Card, an Action is plain data with no code change needed
 to add one. It names the adapter that performs it (today, a Home
 Assistant adapter — `Adapter.action_kinds` says which adapters can) and
 optionally a `state_template` whose output the display shows next to the
@@ -13,8 +13,7 @@ something — the service, the target, the credentials — stays here. So a
 device (or anything else holding its MQTT login) can only trigger actions
 already listed in this file.
 
-actions.yaml is re-read fresh on every poll and every run, the same
-hot-reload property as pixels.yaml: a save through the web UI takes effect
+actions.yaml is re-read fresh on every poll and every run: a save through the web UI takes effect
 straight away, with no live object to patch.
 """
 from __future__ import annotations

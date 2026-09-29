@@ -87,7 +87,6 @@ class Settings(BaseSettings):
     # Config file locations
     adapters_config_path: str = "config/adapters.yaml"
     cards_config_path: str = "config/cards.yaml"
-    pixels_config_path: str = "config/pixels.yaml"
     actions_config_path: str = "config/actions.yaml"
     # Dimmer settings and button bindings for the bedside device (app/device.py).
     device_config_path: str = "config/device.yaml"

@@ -90,16 +90,6 @@ const cardsRoute = createRoute({
   component: lazyRouteComponent(() => import('@/routes/cards'), 'CardsPage'),
 })
 
-const pixelsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: '/pixels',
-  validateSearch: (search: Record<string, unknown>): { pixel?: number } => {
-    const pixel = Number(search.pixel)
-    return { pixel: Number.isInteger(pixel) && pixel >= 0 && pixel <= 4 ? pixel : undefined }
-  },
-  component: lazyRouteComponent(() => import('@/routes/pixels'), 'PixelsPage'),
-})
-
 const actionsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/actions',
@@ -176,7 +166,6 @@ const routeTree = rootRoute.addChildren([
     homeRoute,
     deviceRoute,
     cardsRoute,
-    pixelsRoute,
     actionsRoute,
     adaptersRoute,
     connectionsRoute,

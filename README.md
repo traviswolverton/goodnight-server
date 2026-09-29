@@ -9,7 +9,7 @@ sensors. On top of the desk server it adds the **Device** page: live sensor
 readings, the screen's light-following dimmer, and what each button does.
 
 - **Web UI** — React (`frontend/`), served by the same container.
-- **API + poller** — FastAPI (`app/`): adapters → cards/pixels (Jinja2 templates)
+- **API + poller** — FastAPI (`app/`): adapters → cards (Jinja2 templates)
   → MQTT (`bedside/status`); the device link (`app/device.py`) sends the device
   its settings and reads its sensors and button presses.
 - **Accounts** — Postgres; admin/viewer roles, sessions, audit log.
@@ -44,7 +44,7 @@ values are on the **Settings** page. These are polling, snapshots, sessions,
 HTTPS and proxies, audit retention, Ollama, and log level. They take effect
 immediately on save, with no restart (`config/settings.yaml`).
 
-Live configuration (adapters, cards, pixels, device, connections, settings, encrypted secrets) lives outside
+Live configuration (adapters, cards, device, connections, settings, encrypted secrets) lives outside
 the repo in `/opt/bedside-dashboard-data/config` and is edited through the web UI;
 `config.example/` shows the file formats.
 

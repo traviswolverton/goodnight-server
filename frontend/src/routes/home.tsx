@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Database, Radio, Timer } from 'lucide-react'
-import { DevicePreview, PixelStrip } from '@/components/device-preview'
+import { DevicePreview } from '@/components/device-preview'
 import { PageHeader } from '@/components/page-header'
 import { EmptyState, LoadError, LoadingBlocks } from '@/components/query-state'
 import { StatusPill } from '@/components/status-pill'
@@ -80,11 +80,6 @@ export function HomePage({ username }: { username: string }) {
           <CardHeader>
             <CardTitle>On the display</CardTitle>
             <CardDescription>What each card is publishing right now. Approximate — not the real font.</CardDescription>
-            {status.data && (
-              <CardAction>
-                <PixelStrip pixels={status.data.pixels} />
-              </CardAction>
-            )}
           </CardHeader>
           <CardContent>
             {status.isPending ? (

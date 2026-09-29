@@ -71,7 +71,7 @@ def test_every_state_changing_api_route_is_audited_or_self_auditing():
         if audit_writes in set(_calls(route.dependant)):
             continue
         # previews are read-only by design: viewers may call them, nothing is saved
-        if route.path in {"/api/preview", "/api/preview-status", "/api/preview-pixel-color"}:
+        if route.path in {"/api/preview", "/api/preview-status"}:
             continue
         missing.append(f"{sorted(writes)} {route.path}")
     assert not missing, f"state-changing routes that don't write an audit entry: {missing}"
@@ -86,5 +86,5 @@ def test_previews_are_the_only_write_verbs_open_to_viewers():
             continue
         calls = set(_calls(route.dependant))
         admin_gated = bool(calls & {require_admin, require_admin_for_writes}) or route.path.startswith("/api/auth/")
-        viewer_ok = {"/api/preview", "/api/preview-status", "/api/preview-pixel-color"}
+        viewer_ok = {"/api/preview", "/api/preview-status"}
         assert admin_gated or route.path in viewer_ok, route.path

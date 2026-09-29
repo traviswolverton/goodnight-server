@@ -19,7 +19,6 @@ const FIELD_NOTES: [string, string][] = [
   ['name', 'Stable identifier, matching cards.yaml. Never changes and is never used for display.'],
   ['title', 'Display text for the card’s title row. Falls back to name if the card has no title override.'],
   ['lines', '1–4 pre-formatted display strings, shown verbatim. Falls back to the title if the card has no text template.'],
-  ['pixels', 'Resolved hex colours, keys "0"–"4", or null if that pixel has no colour template. Independent of the cards entirely — the client never computes a colour itself.'],
   ['actions', 'The display’s Actions menu, in order: id, label, an optional live state (“on”, “21.5°”), and whether to ask for a second press first. What an action does stays on the server.'],
 ]
 

@@ -28,10 +28,10 @@ await t.step('sign-in', async () => {
 
 await t.step('navigation', async () => {
   const nav = await page.$$eval('aside nav a', (a) => a.map((x) => x.textContent.trim()))
-  check('admin sees all eight sections', nav.join(',') === 'Home,Device,Cards,Pixels,Actions,Adapters,Users,MQTT reference', nav.join(','))
+  check('admin sees all nine sections', nav.join(',') === 'Home,Device,Cards,Actions,Adapters,Connections,Settings,Users,MQTT reference', nav.join(','))
   check('current section is marked for assistive tech', (await page.$eval('aside nav a[aria-current=page]', (a) => a.textContent.trim()).catch(() => '')) === 'Cards')
-  await goto('/pixels')
-  check('deep link + refresh keeps the session and route', path() === '/pixels' && (await page.$eval('h1', (h) => h.textContent)) === 'Pixels')
+  await goto('/actions')
+  check('deep link + refresh keeps the session and route', path() === '/actions' && (await page.$eval('h1', (h) => h.textContent)) === 'Actions')
   await goto('/nope/nothing')
   check('unknown route shows a 404 inside the app shell', /Page not found/.test(await t.text('main')))
   await goto('/')
@@ -59,7 +59,7 @@ await t.step('mobile', async () => {
   await page.click('button[aria-label="Open menu"]')
   await page.waitForSelector('[role=dialog] nav')
   await sleep(700)
-  check('drawer is fully on screen with every link', (await page.$$eval('[role=dialog] nav a', (a) => a.length)) === 8 && (await page.$eval('[role=dialog]', (d) => { const b = d.getBoundingClientRect(); return b.left >= 0 && b.width > 200 })))
+  check('drawer is fully on screen with every link', (await page.$$eval('[role=dialog] nav a', (a) => a.length)) === 9 && (await page.$eval('[role=dialog]', (d) => { const b = d.getBoundingClientRect(); return b.left >= 0 && b.width > 200 })))
   await page.keyboard.press('Escape')
   await page.setViewport({ width: 1280, height: 900 })
 })
