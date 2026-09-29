@@ -29,8 +29,6 @@ class Settings(BaseSettings):
     mqtt_camera_alert_topic: str = "bedside/alert/camera"
     # Actions (app/actions.py): the display publishes to the first, this
     # service replies on the second.
-    mqtt_action_topic: str = "bedside/action"
-    mqtt_action_result_topic: str = "bedside/action/result"
     # The bedside device itself (app/device.py): its settings go out on
     # the first (retained); it reports on the rest.
     mqtt_device_config_topic: str = "bedside/config"

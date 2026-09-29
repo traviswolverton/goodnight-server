@@ -1,6 +1,6 @@
-"""Actions (app/actions.py): the actions.yaml round trip, the payload's
-`actions` array, the runner (debounce, failures, verify checks), the MQTT
-listener's request/reply, and the API."""
+"""Actions (app/actions.py): the actions.yaml round trip, the status
+payload carrying none, the runner (debounce, failures, verify checks), and
+the API."""
 from __future__ import annotations
 
 import asyncio
@@ -22,7 +22,6 @@ from app.adapters.base import Adapter
 from app.aggregator import Aggregator
 from app.api import router as api_router
 from app.models import AdapterResult
-from app.mqtt import MqttActionListener
 from app.settings import settings
 from tests.auth_helpers import bypass_auth
 
@@ -171,21 +170,6 @@ async def test_runner_reports_a_failure_without_raising(actions_path):
     runner, _ = _runner(actions_path, SwitchAdapter(fail=True))
     outcome = await runner.run("desk_lamp", source="test")
     assert not outcome.ok and outcome.text == "Failed"
-
-
-# --- the MQTT listener -----------------------------------------------------
-
-async def test_listener_replies_with_the_request_counter(actions_path):
-    save_action(str(actions_path), _lamp())
-    runner, _ = _runner(actions_path, SwitchAdapter())
-    result = await MqttActionListener(runner).handle(b'{"id": "desk_lamp", "req": 42}')
-    assert result.model_dump() == {"id": "desk_lamp", "req": 42, "ok": True, "text": "Done"}
-
-
-@pytest.mark.parametrize("payload", [b"not json", b'{"req": 1}', b'{"id": 5}'])
-async def test_listener_ignores_malformed_requests(actions_path, payload):
-    runner, _ = _runner(actions_path, SwitchAdapter())
-    assert await MqttActionListener(runner).handle(payload) is None
 
 
 # --- the API ---------------------------------------------------------------

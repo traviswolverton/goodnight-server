@@ -173,12 +173,6 @@ export interface MqttReference {
   camera_schema: unknown
   status_example: unknown | null
   camera_example: unknown
-  action_topic: string
-  action_result_topic: string
-  action_schema_url: string
-  action_result_schema_url: string
-  action_example: unknown
-  action_result_example: unknown
   limits: {
     title_max_chars: number
     line_max_chars: number[]

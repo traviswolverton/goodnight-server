@@ -87,12 +87,6 @@ async def mqtt_reference(request: Request) -> dict[str, object]:
         "camera_schema": json.loads((SCHEMA_DIR / "camera_alert.schema.json").read_text()),
         "status_example": latest.model_dump(mode="json") if latest else None,
         "camera_example": CAMERA_ALERT_EXAMPLE,
-        "action_topic": settings.mqtt_action_topic,
-        "action_result_topic": settings.mqtt_action_result_topic,
-        "action_schema_url": "/schema/action_request.schema.json",
-        "action_result_schema_url": "/schema/action_result.schema.json",
-        "action_example": {"id": "desk_lamp", "req": 17},
-        "action_result_example": {"id": "desk_lamp", "req": 17, "ok": True, "text": "Done"},
         "limits": {
             "title_max_chars": aggregator_module.CLIENT_NAME_MAX_CHARS,
             "line_max_chars": list(aggregator_module.CLIENT_LINE_MAX_CHARS),

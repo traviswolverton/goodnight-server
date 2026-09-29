@@ -15,9 +15,8 @@ to show, this module is about the hardware on the nightstand:
   device is online (`bedside/availability`, its MQTT last will), and the
   last few button presses. In memory only: the device re-sends all of it
   within 30 seconds of any restart, and retained messages cover the gap.
-- **MqttDeviceLink** — its own broker connection (same reasoning as
-  app.mqtt.MqttActionListener: a long-lived receive loop, kept apart from
-  status publishing). It also announces the device to Home Assistant via
+- **MqttDeviceLink** — its own broker connection: a long-lived receive
+  loop, kept apart from status publishing (app/mqtt.py). It also announces the device to Home Assistant via
   MQTT discovery: three sensors, and a device trigger per button and press
   length, so presses can drive HA automations as well as (or instead of)
   server-side Actions.

@@ -158,8 +158,8 @@ nothing lights up for free.
 10. Frigate — camera/detection status (see camera section below)
 
 ## Transport: MQTT (push, not polling)
-The aggregator is mainly an MQTT **publisher** — its one subscription is
-`bedside/action`, the display asking for an Action (see "Actions"). It
+The aggregator is an MQTT **publisher** (what the device sends in —
+sensors, button presses — is `app/device.py`'s own connection). It
 publishes to:
 - `bedside/status` — full merged status payload, published on any adapter
   state change, PLUS a periodic heartbeat (~30-60s) even with no change, so a
@@ -178,26 +178,24 @@ else on the broker can change what the display shows, and the display's
 login can do nothing else there (`docs/mqtt-broker.md`). The bundled
 broker remains as the `local-mqtt` compose profile.
 
-## Actions (two-way: the display asks, the server acts)
+## Actions (a button asks, the server acts)
 Added 2026-09-26 with the Home Assistant adapter, from the desk unit,
-whose MENU listed the actions (then sent in the status payload) and sent
-the chosen `id` on `bedside/action`, answered on `bedside/action/result`.
-On the bedside, actions are run by **buttons** bound on the Buttons page
-(see "Button feedback"), and the payload carries no list; the
-`bedside/action` request/reply path is still served but has no bedside
-caller.
+whose on-screen menu sent the chosen action's `id` on `bedside/action`
+(answered on `bedside/action/result`). The bedside has no menu: actions
+are run by **buttons** bound on the Buttons page (see "Button feedback"),
+so the device only ever says which button was pressed. The menu's action
+list and request/reply topics were removed 2026-09-29.
 
 **Architecture, and why:** device → broker → this server → Home
 Assistant's REST API. The more HA-native options were considered and
 rejected: ESPHome's native API needs ESPHome firmware (this is custom
 PlatformIO code), and MQTT discovery would (at the time) have meant a
 second set of credentials on the device for HA's own broker. The broker is
-now the shared central one (see "Transport"), but the reasoning below still
-holds: the display talks only to this server's topics. As built, the display never holds a Home
-Assistant credential and can only trigger actions already listed on the
-server — a stolen `esp32-client` login can press the same buttons the
-desk can, nothing more. (Mosquitto's ACL gives `esp32-client` write
-access to `bedside/action` only.)
+now the shared central one (see "Transport"), but the reasoning still
+holds: the display talks only to this server's topics. It never holds a
+Home Assistant credential, and a press is a button number, never an
+instruction — a stolen `bedside-esp32` login can press the same buttons
+the device can, nothing more.
 
 **An action** (`app/actions.py`, one entry in `actions.yaml`, edited on
 the web UI's Actions page) has an `id` (what the device sends), a
@@ -494,27 +492,6 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
   through MQTT.
 - `label` is the detected object class, optional.
 - `text` is pre-worded for display, not derived client-side.
-
-### `bedside/action` (published by the display)
-```json
-{"id": "desk_lamp", "req": 17}
-```
-- `id` is an action id from `config/actions.yaml`.
-- `req` is the display's own counter, echoed back in the result so a
-  reply can be matched to the press that caused it.
-- QoS 0 from the device, not retained. The server runs only actions
-  listed in `config/actions.yaml`; any other `id` gets an "Unknown
-  action" reply and does nothing.
-
-### `bedside/action/result` (published by the server)
-```json
-{"id": "desk_lamp", "req": 17, "ok": true, "text": "Done"}
-```
-- One reply per request, not retained. `text` is short and pre-worded
-  for the display: `Done`, `Failed`, `Too soon` (the same action pressed
-  again within a second — debounced), `No adapter`, `Unknown action`.
-- A successful action also triggers a poll a second later, so the new
-  state (any card showing the same entity) reaches the display without waiting out the poll interval.
 
 ## Card icons (inside line text)
 The ESP32 has a 146-icon set (Material Design Icons 7.4.47, 24px — sized
@@ -875,11 +852,9 @@ the ESP32 client needs to reach both from elsewhere on the network.
   end-to-end: anonymous/bad-password connections refused, and a write from
   `esp32-client` is silently dropped by the ACL rather than reaching the
   topic. TLS was deliberately skipped — LAN-only broker; revisit
-  if it's ever exposed beyond the LAN. **Changed 2026-09-26 for Actions:**
-  each account now has exactly one topic in the other direction —
-  `esp32-client` writes `bedside/action` and reads
-  `bedside/action/result`, `aggregator` the reverse; everything else is
-  as before.
+  if it's ever exposed beyond the LAN. (2026-09-26 added the Actions
+  menu's `bedside/action` topics; removed 2026-09-29 with the menu. The
+  current accounts and topics are in `docs/mqtt-broker.md`.)
 - ~~Build adapters incrementally~~ — 7 adapters built in `app/adapters/`.
   Verified 2026-09-23 by polling each once against the real homelab
   service: AdGuard Home, Uptime Kuma, Frigate, UniFi, Tracearr and Proxmox

@@ -28,7 +28,7 @@ from app.db import Database
 from app.device import MqttDeviceLink, device_state
 from app.auth.bootstrap import bootstrap_admin
 from app.auth.retention import prune_audit_log
-from app.mqtt import MqttActionListener, MqttPublisher
+from app.mqtt import MqttPublisher
 from app.routes import router
 from app.spa import router as spa_router
 from app.security_headers import SecurityHeadersMiddleware
@@ -64,7 +64,6 @@ async def lifespan(app: FastAPI):
     loop_task = asyncio.create_task(aggregator.run_forever())
 
     action_runner = ActionRunner(aggregator, settings.actions_config_path)
-    listener_task = asyncio.create_task(MqttActionListener(action_runner).run_forever())
 
     device_link = MqttDeviceLink(device_state, action_runner, settings.device_config_path)
     device_task = asyncio.create_task(device_link.run_forever())
@@ -81,12 +80,11 @@ async def lifespan(app: FastAPI):
     finally:
         aggregator.stop()
         await loop_task
-        for task in (listener_task, device_task):
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+        device_task.cancel()
+        try:
+            await device_task
+        except asyncio.CancelledError:
+            pass
         await publisher.disconnect()
         await database.stop()
         for adapter in adapters:

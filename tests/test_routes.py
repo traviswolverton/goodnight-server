@@ -28,7 +28,6 @@ def test_healthz_is_a_plain_ok():
 # --- /api/mqtt-reference ---------------------------------------------------
 
 def test_mqtt_reference_exposes_both_schemas_and_the_real_client_limits():
-    from app.models import ActionRequest, ActionResult
     from app.aggregator import (
         CLIENT_LINE_MAX_CHARS,
         CLIENT_MAX_SERVICES,
@@ -46,10 +45,6 @@ def test_mqtt_reference_exposes_both_schemas_and_the_real_client_limits():
         "overall_text_max_chars": CLIENT_OVERALL_TEXT_MAX_CHARS, "max_services": CLIENT_MAX_SERVICES,
     }
     assert "sig" in data["camera_example"]["snapshot_url"]          # documents the signed link
-    assert data["action_topic"] == "bedside/action"
-    assert data["action_result_topic"] == "bedside/action/result"
-    assert ActionRequest.model_validate(data["action_example"])
-    assert ActionResult.model_validate(data["action_result_example"])
 
 
 def test_mqtt_reference_live_example_is_null_until_something_was_polled_then_real():

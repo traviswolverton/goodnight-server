@@ -86,35 +86,6 @@ export function MqttPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>
-                Topics <code className="text-base">{data.action_topic}</code> and <code className="text-base">{data.action_result_topic}</code>
-              </CardTitle>
-              <CardDescription>
-                The other direction: the display publishes an action&rsquo;s <code>id</code> (from <code>actions[]</code> above) when it&rsquo;s picked
-                on its Actions menu, and gets one reply per request, matched by <code>req</code>. Neither is retained. The server only runs actions listed
-                on the Actions page, so the display can&rsquo;t ask for anything else.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="flex flex-wrap gap-2">
-                <Button asChild variant="outline" size="sm" className="w-fit">
-                  <a href={data.action_schema_url} target="_blank" rel="noreferrer">
-                    <ExternalLink aria-hidden="true" /> Request schema
-                  </a>
-                </Button>
-                <Button asChild variant="outline" size="sm" className="w-fit">
-                  <a href={data.action_result_schema_url} target="_blank" rel="noreferrer">
-                    <ExternalLink aria-hidden="true" /> Result schema
-                  </a>
-                </Button>
-              </div>
-              <Json value={data.action_example} label="Example action request" />
-              <Json value={data.action_result_example} label="Example action result" />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <CardTitle>Field notes</CardTitle>
             </CardHeader>
             <CardContent>

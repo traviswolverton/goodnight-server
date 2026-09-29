@@ -14,8 +14,8 @@ Two accounts, each limited to exactly the topics it needs:
 
 | Account | Who | Reads | Writes |
 |---|---|---|---|
-| `bedside-aggregator` | this service | `bedside/action`, `bedside/sensors`, `bedside/button`, `bedside/availability` | `bedside/status`, `bedside/alert/camera`, `bedside/action/result`, `bedside/config`, `bedside/sound`, and this device's discovery topics under `homeassistant/` |
-| `bedside-esp32` | the nightstand device | `bedside/status`, `bedside/config`, `bedside/sound`, `bedside/action/result` | `bedside/sensors`, `bedside/button`, `bedside/availability`, `bedside/action` |
+| `bedside-aggregator` | this service | `bedside/sensors`, `bedside/button`, `bedside/availability` | `bedside/status`, `bedside/alert/camera`, `bedside/config`, `bedside/sound`, and this device's discovery topics under `homeassistant/` |
+| `bedside-esp32` | the nightstand device | `bedside/status`, `bedside/config`, `bedside/sound` | `bedside/sensors`, `bedside/button`, `bedside/availability` |
 
 On a shared broker these limits matter more, not less. Nothing else on it
 (Home Assistant, other devices, the desk dashboard) can write what the
@@ -39,8 +39,6 @@ and add to the broker's ACL file (the same rules as the bundled broker's
 user bedside-aggregator
 topic write bedside/status
 topic write bedside/alert/camera
-topic read bedside/action
-topic write bedside/action/result
 topic write bedside/config
 topic write bedside/sound
 topic read bedside/sensors
@@ -56,8 +54,6 @@ topic read bedside/sound
 topic write bedside/sensors
 topic write bedside/button
 topic write bedside/availability
-topic write bedside/action
-topic read bedside/action/result
 ```
 
 Then reload the broker (`kill -HUP` its process, or restart it). Home
