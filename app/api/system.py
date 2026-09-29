@@ -17,7 +17,7 @@ def _schedule_restart() -> None:
     compose service has `restart: unless-stopped`, so Docker brings it
     straight back up and re-reads every config file. Uses SIGTERM (uvicorn's
     graceful shutdown) rather than a hard exit, so the lifespan cleanup
-    (MQTT disconnect, adapter clients) still runs. No docker socket needed."""
+    (MQTT disconnect, HTTP clients) still runs. No docker socket needed."""
     asyncio.get_running_loop().call_later(0.5, os.kill, os.getpid(), signal.SIGTERM)
 
 

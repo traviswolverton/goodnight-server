@@ -55,9 +55,6 @@ class Field:
 
 
 FIELDS: tuple[Field, ...] = (
-    Field("poll_interval_seconds", "Poll interval", "Polling",
-          "How often every adapter is read.", "number", 5, 3600, "seconds"),
-
     Field("session_idle_hours", "Sign out after idle", "Sign-in and security",
           "A session ends after this long without use.", "number", 0.25, 720, "hours"),
     Field("session_max_days", "Session lifetime", "Sign-in and security",

@@ -30,7 +30,7 @@ def _restore_settings(tmp_path, monkeypatch):
 
 @pytest.fixture
 def client(monkeypatch):
-    monkeypatch.setattr(settings, "poll_interval_seconds", 15.0)
+    monkeypatch.setattr(settings, "session_idle_hours", 24.0)
     monkeypatch.setattr(settings, "audit_retention_days", 365)
     monkeypatch.setattr(settings, "https_only", False)
     monkeypatch.setattr(settings, "trusted_proxies", "")
@@ -47,7 +47,7 @@ def _field(body, key):
 # --- validation ------------------------------------------------------------------------------
 
 @pytest.mark.parametrize(("key", "raw", "expected"), [
-    ("poll_interval_seconds", "20", 20.0),
+    ("session_idle_hours", "20", 20.0),
     ("audit_retention_days", "90", 90),
     ("https_only", True, True),
     ("trusted_proxies", " 192.0.2.10 , ::1 ,", "192.0.2.10,::1"),
@@ -60,8 +60,8 @@ def test_coerce_accepts(key, raw, expected):
 
 
 @pytest.mark.parametrize(("key", "raw"), [
-    ("poll_interval_seconds", "1"),                # below the minimum
-    ("poll_interval_seconds", "abc"),
+    ("session_idle_hours", "0.1"),              # below the minimum
+    ("session_idle_hours", "abc"),
     ("audit_retention_days", "90.5"),             # integers only
     ("https_only", "yes"),
     ("trusted_proxies", "192.0.2.0/24"),         # client_ip() matches exact addresses
@@ -78,37 +78,37 @@ def test_coerce_rejects(key, raw):
 
 def test_saved_values_overlay_and_bad_ones_are_skipped(tmp_path):
     path = tmp_path / "settings.yaml"
-    path.write_text("poll_interval_seconds: 30\naudit_retention_days: nonsense\n"
+    path.write_text("session_idle_hours: 30\naudit_retention_days: nonsense\n"
                     "heartbeat_interval_seconds: 45\nlog_level: WARNING\n")  # a since-removed setting too
-    before_poll = settings.poll_interval_seconds
+    before_poll = settings.session_idle_hours
     saved = SavedSettings(settings)
     before_days = settings.audit_retention_days
     saved.apply(settings, path)
-    assert settings.poll_interval_seconds == 30.0 and settings.audit_retention_days == before_days
+    assert settings.session_idle_hours == 30.0 and settings.audit_retention_days == before_days
     assert logging.getLogger().level == logging.WARNING           # applied, not just stored
     rows = {r["key"]: r for r in saved.describe(settings, path)}
-    assert rows["poll_interval_seconds"]["source"] == "app"
-    assert rows["poll_interval_seconds"]["baseline"] == before_poll        # what reset goes back to
+    assert rows["session_idle_hours"]["source"] == "app"
+    assert rows["session_idle_hours"]["baseline"] == before_poll        # what reset goes back to
     assert rows["session_max_days"]["source"] in ("env", "default")
 
 
 # --- API -------------------------------------------------------------------------------------
 
 def test_save_applies_immediately_and_reset_goes_back(client):
-    body = client.put("/api/settings", json={"values": {"poll_interval_seconds": "20", "log_level": "DEBUG"}}).json()
-    assert settings.poll_interval_seconds == 20.0 and _field(body, "poll_interval_seconds")["source"] == "app"
+    body = client.put("/api/settings", json={"values": {"session_idle_hours": "20", "log_level": "DEBUG"}}).json()
+    assert settings.session_idle_hours == 20.0 and _field(body, "session_idle_hours")["source"] == "app"
     assert logging.getLogger().level == logging.DEBUG
-    assert yaml.safe_load(open(settings.app_settings_path)) == {"poll_interval_seconds": 20.0, "log_level": "DEBUG"}
+    assert yaml.safe_load(open(settings.app_settings_path)) == {"session_idle_hours": 20.0, "log_level": "DEBUG"}
 
-    body = client.put("/api/settings", json={"values": {"poll_interval_seconds": None}}).json()
-    assert settings.poll_interval_seconds == 15.0 and _field(body, "poll_interval_seconds")["source"] != "app"
+    body = client.put("/api/settings", json={"values": {"session_idle_hours": None}}).json()
+    assert settings.session_idle_hours == 24.0 and _field(body, "session_idle_hours")["source"] != "app"
     assert yaml.safe_load(open(settings.app_settings_path)) == {"log_level": "DEBUG"}
 
 
 def test_a_bad_value_saves_nothing(client):
-    resp = client.put("/api/settings", json={"values": {"poll_interval_seconds": "20", "audit_retention_days": "-1"}})
+    resp = client.put("/api/settings", json={"values": {"session_idle_hours": "20", "audit_retention_days": "-1"}})
     assert resp.status_code == 400 and "audit" in resp.json()["detail"].lower()
-    assert settings.poll_interval_seconds == 15.0
+    assert settings.session_idle_hours == 24.0
 
 
 def test_https_only_cannot_be_turned_on_over_http(client):
@@ -153,5 +153,5 @@ def test_ollama_test_unreachable(client):
 def test_saving_drops_settings_that_no_longer_exist(client):
     with open(settings.app_settings_path, "w") as f:
         f.write("heartbeat_interval_seconds: 45\nlog_level: DEBUG\n")
-    assert client.put("/api/settings", json={"values": {"poll_interval_seconds": "20"}}).status_code == 200
-    assert yaml.safe_load(open(settings.app_settings_path)) == {"log_level": "DEBUG", "poll_interval_seconds": 20.0}
+    assert client.put("/api/settings", json={"values": {"session_idle_hours": "20"}}).status_code == 200
+    assert yaml.safe_load(open(settings.app_settings_path)) == {"log_level": "DEBUG", "session_idle_hours": 20.0}

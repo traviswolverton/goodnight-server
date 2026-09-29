@@ -1,5 +1,5 @@
-"""The MQTT broker and Postgres database this app connects to, as set
-from the web UI's Connections page (app/api/connections.py).
+"""The MQTT broker, Postgres database and Home Assistant this app connects
+to, as set from the web UI's Connections page (app/api/connections.py).
 
 Saved in config/connections.yaml, with each password in the encrypted
 secret store (app/secret_store.py), never in the YAML itself:
@@ -37,6 +37,18 @@ SHA-256 of the device's token (never the token itself):
 Without a saved broker there, the device gets the app's own broker
 host/port with MQTT_CLIENT_USERNAME/PASSWORD from .env.
 
+A fourth, `home_assistant:`, is the Home Assistant that Actions run
+through (app/home_assistant.py). It has no .env fallback, and a save
+takes effect without a restart:
+
+    home_assistant:
+      url: http://192.0.2.29:8123
+      verify_ssl: true
+      token: {secret: connection_home_assistant_token}
+
+Before 2026-09-29 it was an adapter in config/adapters.yaml;
+import_home_assistant_adapter() moves that one over once.
+
 The checks the UI runs before a save are here too: check_mqtt() and
 inspect_database(), plus copy_database() for moving to an empty one.
 
@@ -72,6 +84,7 @@ logger = logging.getLogger(__name__)
 MQTT_SECRET = "connection_mqtt_password"
 DATABASE_SECRET = "connection_database_password"
 DISPLAY_SECRET = "connection_display_mqtt_password"
+HOME_ASSISTANT_SECRET = "connection_home_assistant_token"
 
 #: Seconds a connection test waits for a broker / database to answer.
 TEST_TIMEOUT_SECONDS = 10.0
@@ -146,6 +159,38 @@ def _port(raw: object, default: int) -> int:
     return port
 
 
+@dataclass
+class HomeAssistantConnection:
+    url: str
+    token: str | None = field(default=None, repr=False)
+    verify_ssl: bool = True
+
+
+def _url(raw: object) -> str:
+    url = str(raw or "").strip().rstrip("/")
+    if not url:
+        raise ConnectionConfigError("URL is required")
+    if not url.startswith(("http://", "https://")) or any(c.isspace() for c in url):
+        raise ConnectionConfigError("URL must start with http:// or https://, e.g. http://homeassistant.local:8123")
+    return url
+
+
+def _bool(raw: object, default: bool) -> bool:
+    if raw in (None, ""):
+        return default
+    if isinstance(raw, bool):
+        return raw
+    return str(raw).strip().lower() in ("true", "1", "on", "yes")
+
+
+def home_assistant_from_form(fields: dict, fallback_token: str | None) -> HomeAssistantConnection:
+    token = str(fields.get("token") or "").strip() or fallback_token
+    if not token:
+        raise ConnectionConfigError("Access token is required")
+    return HomeAssistantConnection(url=_url(fields.get("url")), token=token,
+                                   verify_ssl=_bool(fields.get("verify_ssl"), True))
+
+
 def mqtt_from_form(fields: dict, fallback_password: str | None) -> MqttConnection:
     """A blank password keeps `fallback_password` (the one in use), so
     editing the host doesn't mean retyping it."""
@@ -216,6 +261,67 @@ def save_display_broker(path: str | Path, secrets_path: str | Path, conn: MqttCo
         set_secret(secrets_path, DISPLAY_SECRET, conn.password)
         values["password"] = {"secret": DISPLAY_SECRET}
     _write_section(path, "display", values, keep=("token_sha256",))
+
+
+def save_home_assistant(path: str | Path, secrets_path: str | Path, conn: HomeAssistantConnection) -> None:
+    set_secret(secrets_path, HOME_ASSISTANT_SECRET, conn.token or "")
+    _write_section(path, "home_assistant", {
+        "url": conn.url, "verify_ssl": conn.verify_ssl, "token": {"secret": HOME_ASSISTANT_SECRET}})
+
+
+def load_home_assistant(settings) -> HomeAssistantConnection | None:
+    """The saved Home Assistant, or None when there isn't one (or it
+    can't be used: logged)."""
+    try:
+        section = _read(Path(settings.connections_config_path)).get("home_assistant")
+    except ConnectionConfigError as exc:
+        logger.error("can't read the saved Home Assistant connection: %s", exc)
+        return None
+    if not isinstance(section, dict):
+        return None
+    try:
+        return HomeAssistantConnection(url=_url(section.get("url")),
+                                       token=_password(section.get("token"), settings.secrets_config_path),
+                                       verify_ssl=_bool(section.get("verify_ssl"), True))
+    except (ConnectionConfigError, SecretError) as exc:
+        logger.error("can't use the saved Home Assistant connection: %s", exc)
+        return None
+
+
+def import_home_assistant_adapter(settings) -> bool:
+    """One-time move: a `home_assistant` adapter in the old
+    config/adapters.yaml (beside connections.yaml) becomes the
+    `home_assistant:` section, keeping its encrypted token where it is.
+    Does nothing once that section exists. True if it moved one."""
+    path = Path(settings.connections_config_path)
+    old = path.with_name("adapters.yaml")
+    try:
+        if not old.exists() or "home_assistant" in _read(path):
+            return False
+        adapters = (yaml.safe_load(os.path.expandvars(old.read_text())) or {}).get("adapters") or []
+    except (ConnectionConfigError, yaml.YAMLError, OSError) as exc:
+        logger.error("couldn't check %s for a Home Assistant adapter: %s", old, exc)
+        return False
+    entry = next((e for e in adapters if isinstance(e, dict) and e.get("type") == "home_assistant"
+                  and e.get("enabled", True)), None)
+    if entry is None:
+        return False
+    options = entry.get("options") or {}
+    token = options.get("token")
+    try:
+        url = _url(options.get("base_url"))
+        if not (isinstance(token, dict) and set(token) == {"secret"}):
+            # A literal (or ${VAR}-expanded) token: encrypt it now.
+            set_secret(settings.secrets_config_path, HOME_ASSISTANT_SECRET, str(token or ""))
+            token = {"secret": HOME_ASSISTANT_SECRET}
+        _write_section(path, "home_assistant", {
+            "url": url, "verify_ssl": _bool(options.get("verify_ssl"), True), "token": dict(token)})
+    except (ConnectionConfigError, SecretError) as exc:
+        logger.error("couldn't move the Home Assistant adapter from %s: %s", old, exc)
+        return False
+    logger.warning("moved Home Assistant from %s to %s; %s is no longer read and can be deleted",
+                   old.name, path.name, old.name)
+    return True
 
 
 def _token_hash(token: str) -> str:

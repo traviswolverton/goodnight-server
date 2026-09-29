@@ -40,14 +40,11 @@ class Settings(BaseSettings):
     # blank turns it off.
     ha_discovery_prefix: str = "homeassistant"
 
-    # How often every adapter is polled (app/aggregator.py).
-    poll_interval_seconds: float = 15.0
-
     # Postgres (users / sessions / audit log — docs/plan-ui-and-auth.md).
     # SQLAlchemy async URL, e.g. postgresql+asyncpg://user:pass@postgres:5432/db
     # (percent-encode any special characters in the password). None disables
-    # everything that needs the database; adapter polling and the device
-    # link never depend on it — see app/db.py.
+    # everything that needs the database; Actions and the device link
+    # never depend on it — see app/db.py.
     database_url: str | None = None
 
     # --- Authentication (docs/plan-ui-and-auth.md) -----------------------
@@ -73,16 +70,16 @@ class Settings(BaseSettings):
     frontend_dist_path: str | None = None
 
     # Config file locations
-    adapters_config_path: str = "config/adapters.yaml"
     actions_config_path: str = "config/actions.yaml"
     # Dimmer settings and button bindings for the bedside device (app/device.py).
     device_config_path: str = "config/device.yaml"
-    # Encrypted per-adapter credentials (app/secret_store.py). The master
+    # Encrypted passwords and tokens (app/secret_store.py). The master
     # key is the one secret still held unencrypted; see .env.example.
     secrets_config_path: str = "config/secrets.enc.yaml"
     secrets_master_key: str | None = None
-    # MQTT broker / database set from the web UI's Connections page; they
-    # replace the MQTT_* / DATABASE_URL values above (app/connections.py).
+    # MQTT broker / database / Home Assistant set from the web UI's
+    # Connections page; the first two replace the MQTT_* / DATABASE_URL
+    # values above (app/connections.py).
     connections_config_path: str = "config/connections.yaml"
     # Settings changed on the web UI's Settings page, laid over the values
     # here (app/app_settings.py).

@@ -5,23 +5,24 @@
 # to edit: the web UI's Actions page — it has entity pickers and a Run
 # button, and saves apply straight away.
 #
-# `adapter` names an adapter from adapters.yaml that can run actions (today:
-# type home_assistant). `kind` is one of:
+# Actions run through the Home Assistant set on the Connections page.
+# `kind` is one of:
 #   service — call `service` (domain.service) on `target`, with extra `data`
 #   script  — run the `target` script.* entity, `data` as its variables
 #   event   — fire `desk_dashboard_action` with {action: <id>, label: ...}
 #             for a Home Assistant automation to handle
 # `confirm: true` asks for the same press again first (within 5 s).
 # `verify` checks it really happened: {entities: [...], state: closed, timeout: 45}.
-# `state_template` (Jinja2) is shown beside the label on the Actions page.
+# `state_template` (Jinja2) is shown beside the label on the Actions page:
+# `states['<entity_id>'].state` (also .name, .unit, .attributes) and the
+# device's own readings as `device.temperature_c`, `device.humidity`...
 #
 # Example:
 #   - id: desk_lamp
 #     label: Desk lamp
-#     adapter: home_assistant
 #     kind: service
 #     service: light.toggle
 #     target: light.desk
-#     state_template: "{{ adapters.home_assistant.entities['light.desk'].state }}"
+#     state_template: "{{ states['light.desk'].state }}"
 
 actions: []

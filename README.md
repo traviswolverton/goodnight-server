@@ -11,10 +11,9 @@ and looks after the device itself: its **Device** page (readings, the
 light-following dimmer, the buzzer) and **Buttons** page.
 
 - **Web UI** — React (`frontend/`), served by the same container.
-- **API + poller** — FastAPI (`app/`): polls adapters (Home Assistant, the
-  device's own sensors) for Actions to run and check; the device link
-  (`app/device.py`) sends the device its settings and sounds, and turns its
-  button presses into Actions.
+- **API** — FastAPI (`app/`): runs Actions through Home Assistant's REST
+  API (`app/home_assistant.py`); the device link (`app/device.py`) sends the
+  device its settings and sounds, and turns its button presses into Actions.
 - **Accounts** — Postgres; admin/viewer roles, sessions, audit log.
 - **MQTT broker** — your central broker (accounts and ACLs in
   [`docs/mqtt-broker.md`](docs/mqtt-broker.md)), or a bundled Mosquitto via the
@@ -40,19 +39,20 @@ a Postgres you provide (one-time role/database setup in
 `local-mqtt`. The first start creates that administrator; sign in at `http://<host>:8001`. After
 that the two `ADMIN_*` values are ignored and can be removed.
 
-After the first start, the broker and database can be changed on the web UI's
-**Connections** page. Each change is tested before it's saved, and the saved
+After the first start, connect **Home Assistant** (its URL and a long-lived
+access token) on the web UI's **Connections** page; the broker and database
+can be changed there too. Each change is tested before it's saved, and the saved
 values override `.env` (`config/connections.yaml`). The rest of the tunable
-values are on the **Settings** page. These are polling, sessions,
+values are on the **Settings** page. These are sessions,
 HTTPS and proxies, audit retention, Ollama, and log level. They take effect
 immediately on save, with no restart (`config/settings.yaml`).
 
-Live configuration (adapters, actions, device, connections, settings, encrypted secrets) lives outside
+Live configuration (actions, device, connections, settings, encrypted secrets) lives outside
 the repo in `/opt/bedside-dashboard-data/config` and is edited through the web UI;
 `config.example/` shows the file formats.
 
-The container runs a **single worker on purpose** — the poll loop and MQTT
-connection are in-process state.
+The container runs a **single worker on purpose** — the MQTT connection and
+the armed-confirm state are in-process.
 
 ## Develop
 
@@ -84,12 +84,11 @@ Needs only Docker. It never touches your running deployment. See
 ## Layout
 
 ```
-app/            FastAPI service: adapters/, api/, auth/, aggregator, mqtt, spa, ...
+app/            FastAPI service: api/, auth/, actions, device, home_assistant, spa, ...
 app/migrations/ Alembic (applied automatically at startup)
 frontend/       React app (Vite, TypeScript, Tailwind, shadcn/ui)
 e2e/            Browser tests (Puppeteer + axe-core, run in Docker)
 tests/          pytest suite
-schema/         JSON Schema for the MQTT payloads (regenerate: scripts/export_schema.py)
 mosquitto/      Bundled broker config (local-mqtt only);  postgres/  role creation (local-db only)
 docs/           Longer-form docs and plans
 ```
@@ -99,8 +98,8 @@ docs/           Longer-form docs and plans
 Every route requires a login except `/healthz`, `/device/config` (the device's
 own token), and the static UI shell (a test fails if a new route is left open). Passwords are
 Argon2id; sessions are server-side; every write needs a CSRF token; logins and
-password changes are rate-limited; all changes are audited; adapter credentials
-are encrypted at rest and never sent to a browser. The ESP32 holds
+password changes are rate-limited; all changes are audited; passwords and the Home
+Assistant token are encrypted at rest and never sent to a browser. The ESP32 holds
 only its own MQTT login and device token; a button press is a number, never an
 instruction. Details
 in `DESIGN.md` ("Security / network exposure").

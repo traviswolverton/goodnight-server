@@ -48,9 +48,9 @@ snapshots): homelab services rendered as cards. The bedside unit isn't — see
   needed; the server's account may only write this device's discovery
   topics, never another HA entity's. Device-trigger payloads must match the firmware's
   `publishButton()` byte for byte (tests/test_device.py checks).
-- **Sensors in templates.** The `bedside_device` adapter reads the latest
-  report: `{{ adapters.<name>.temperature_c }}`, `temperature_f`,
-  `humidity`, `lux`, `screen`, `online`, `last_report_seconds`.
+- **Sensors in templates.** An Action's state text can use the latest
+  report: `{{ device.temperature_c }}`, `temperature_f`, `humidity`, `lux`,
+  `screen`, `online`, `last_report_seconds` (`app/state_templates.py`).
 - **The screen is the device's own business.** A resting readout (clock,
   light, temperature, humidity — all local to the device) plus brief
   confirmations of what a button press did, alongside its sounds. No
@@ -65,29 +65,42 @@ adapter, `bedside/alert/camera`, the signed `/snapshot` proxy), the desk's
 **icon font** and its line-width tables, the on-screen **Actions menu** (its
 action list and `bedside/action` request/reply topics), and earlier the
 **Pixels** (LEDs). The desk repo still has all of it; `git log` here has
-the removal commits if any of it is wanted back. What stayed: adapters
-(polled, for Actions to run and check and for templates), Actions,
+the removal commits if any of it is wanted back. What stayed: Actions,
 buttons, sounds, the device's settings, and the AI plumbing
 (`app/ai_assist.py`, pointed at Action state text for now).
 
-## Architecture: adapter pattern
-Each integration is a small class (`app/adapters/`) with one required
-method, `fetch()`, returning an `AdapterResult` — name, status
-(`ok`/`warn`/`down`), value, unit, detail, and a `context` of named values
-for templates. Adapters are config-driven (`config/adapters.yaml`, edited on
-the Adapters page): no code change to enable, add or remove one.
+The same day, **adapters** went too (the plug-in data sources, their poll
+loop, the Adapters page, and the Uptime Kuma, AdGuard, Proxmox, TrueNAS,
+UniFi and Tracearr integrations): this unit is a remote control for Home
+Assistant, which was the only adapter doing any work, and HA already
+integrates most of what the others read. Home Assistant became a plain
+connection (below).
 
-The aggregator (`app/aggregator.py`) polls every enabled adapter on an
-interval and keeps each one's latest result — publishing nothing. Readers:
-an Action's adapter (to run it, and to check it happened), an Action's
-`state_template`, the Home and Adapters pages' health, and AI assist's
-tools. Templates render in a Jinja2 sandbox against
-`{{ adapters.<name>.<field> }}`, every adapter namespaced under its own name.
+## Architecture: one Home Assistant, read on demand
+Home Assistant is a connection like the broker and the database: a URL, a
+long-lived access token and a TLS-check switch, saved on the Connections
+page into `config/connections.yaml` (the token encrypted in
+`secrets.enc.yaml`). A save swaps the client in place, no restart
+(`HomeAssistantLink` in `app/home_assistant.py`).
 
-Adapters built: **Home Assistant** (entities; runs and checks Actions) and
-**bedside_device** (the device's own sensors) are the ones this unit uses.
-Inherited from the desk unit and still available: Uptime Kuma, AdGuard Home,
-Proxmox, TrueNAS, UniFi, Tracearr.
+Nothing polls it. What reads it asks when it needs to: a button press runs
+an Action through its REST API (and an Action's `verify` check reads the
+entities it watches), and the Actions page renders each Action's
+`state_template` from one `GET /api/states` per page load (cached for two
+seconds so the Preview right after reuses it). The Home and Connections
+pages ask whether it answers (`GET /api/config`, cached 30 s).
+
+Templates render in a Jinja2 sandbox against `states['<entity_id>']`
+(`.state`, `.name`, `.unit`, `.domain`, `.attributes`, `.last_changed`)
+and `device.<field>` (the device's own readings). Attributes that carry
+secrets or whereabouts (a camera's `access_token`, a person's GPS
+position) are dropped before a template can see them. The page only ever
+receives the rendered text: the full entity list stays server-side, since
+viewer accounts can read the Actions page.
+
+Before 2026-09-29 Home Assistant was an adapter in `config/adapters.yaml`;
+on startup the app moves that entry into `connections.yaml` once (keeping
+its encrypted token) and then ignores the file.
 
 ## Transport: MQTT (push, not polling)
 One connection, `app/device.py`'s `MqttDeviceLink`: it publishes the
@@ -106,7 +119,7 @@ nothing else there (`docs/mqtt-broker.md`). The bundled broker remains as
 the `local-mqtt` compose profile.
 
 ## Actions (a button asks, the server acts)
-Added 2026-09-26 with the Home Assistant adapter, from the desk unit,
+Added 2026-09-26 with the Home Assistant connection, from the desk unit,
 whose on-screen menu sent the chosen action's `id` on `bedside/action`
 (answered on `bedside/action/result`). The bedside has no menu: actions
 are run by **buttons** bound on the Buttons page (see "Button feedback"),
@@ -126,7 +139,7 @@ the device can, nothing more.
 
 **An action** (`app/actions.py`, one entry in `actions.yaml`, edited on
 the web UI's Actions page) has an `id` (what the device sends), a
-`label`, the `adapter` that performs it, and a `kind`:
+`label`, and a `kind`:
 - `service` — call `domain.service` (e.g. `light.toggle`) on an optional
   `target` entity, with optional extra `data`;
 - `script` — run a `script.*` entity, `data` as its variables;
@@ -136,14 +149,16 @@ the web UI's Actions page) has an `id` (what the device sends), a
 
 Plus `confirm` (ask for a second press first — locks, garage doors), an
 optional `verify` check (see "Button feedback"), and an optional
-`state_template` (usually `{{ adapters.home_assistant.entities['light.desk'].state }}`)
+`state_template` (usually `{{ states['light.desk'].state }}`)
 shown beside the label on the Actions page. `actions.yaml` is re-read on
 every run: saves apply without a restart.
 
-**Which adapters run actions:** any whose `action_kinds` is non-empty
-(`Adapter.run_action()` in `app/adapters/base.py`) — today only
-`home_assistant`. The web UI's Run button goes through the same
-`ActionRunner` as a button press, so the debounce covers both.
+**Who runs them:** Home Assistant, always (`HomeAssistant.run_action()`
+in `app/home_assistant.py`); an action pressed before it's set up fails
+with "No HA". Actions saved before 2026-09-29 also named an `adapter`;
+that field is ignored and dropped on the next save. The web UI's Run
+button goes through the same `ActionRunner` as a button press, so the
+debounce covers both.
 
 **Limits:** any number of actions. 23-byte id and label, and an 11-byte
 state (cut at a character boundary), sized for on-screen confirmations.
@@ -193,8 +208,7 @@ verify:
 Before calling Home Assistant, the runner reads those entities: if they
 already pass, it skips the call and reports success ("make sure it's
 closed", not "close it"). Otherwise it makes the call, then polls just
-those entities (`GET /api/states/<id>`, once a second — the adapter's
-normal poll is far too slow) until they all pass → `success`, or the
+those entities (`GET /api/states/<id>`, once a second) until they all pass → `success`, or the
 timeout / an entity going `unavailable` → `failure`. Without `verify`,
 success means Home Assistant accepted the call, as before. The web UI's
 Run button goes through the same runner, so it waits for the check too.
@@ -220,20 +234,23 @@ answer checks — pointed at the one template left, an Action's short
 Actions-page helper. The history below is from the card era, and is why
 the checks exist.
 
+Since adapters went (2026-09-29) its tools are `search_entities` (find a
+Home Assistant entity id by name — a real install has thousands),
+`get_entity` (one entity exactly as a template sees it),
+`get_device_readings` and `list_existing_templates`; the caller reads the
+template context once and passes it in. The made-up-name check below now
+looks for entity ids that don't exist (`_unknown_entities()`); in the
+history, read "adapter" for what is now an entity.
+
 **Design choice made explicitly, not the obvious default**: rather than
 stuffing a static dump of live variable values into one big prompt, the
 model gets real read-only **tools** and runs an actual tool-calling loop
-(`run_agent()`) — `list_adapters`, `describe_adapter` (an adapter's own
-`description` — what the underlying service actually does, e.g. "AdGuard
-Home: a network-wide DNS-level ad and tracker blocker..." — plus its
-current live field values), `get_live_context`, and
-`list_existing_templates` (real templates already configured, as style
+(`run_agent()`) — then `list_adapters`, `describe_adapter` (an adapter's
+own `description` plus its current live field values), `get_live_context`
+and `list_existing_templates` (real templates already configured, as style
 examples). The model decides what it needs and looks it up, the same way
 an agent working in this repo reads a file instead of guessing its
-contents, rather than receiving one fixed context blob that goes stale
-as adapters are added. Every shipped `Adapter` subclass sets a real
-`description` class attribute specifically so this has something
-meaningful to hand over.
+contents, rather than receiving one fixed context blob that goes stale.
 
 **Safety property, unconditional**: the model's final answer only ever
 fills the relevant textarea/input in the editor — it is never
@@ -249,22 +266,22 @@ fabricated different adapter names in its actual answer (`adapters.
 requests.total`, `adapters.up.time_kuma.avg_uptime_pct` instead of the
 real `adguard_main`/`uptime_kuma`) — consulting a tool and heeding its
 result turned out to be two separate things. `run_agent()` now checks
-every candidate final answer against the real adapter list
-(`_invalid_adapter_references()`) before accepting it, and gives the
+every candidate final answer against the real names (then
+`_invalid_adapter_references()`, now `_unknown_entities()`) before
+accepting it, and gives the
 model one corrective turn naming exactly which reference was wrong and
 what the real names are, rather than handing a hallucinated answer back
 to the user and relying solely on the Preview-time render error to
-catch it. The system prompt also states the exact real adapter name
-list up front now, rather than only trusting the model to look it up.
+catch it. (While there were adapters, the system prompt also listed
+their exact names up front.)
 
 **A third failure mode, same day**: a generation used a real adapter
 name correctly, then invented a `| comma` filter for thousands
 separators that simply doesn't exist in this project's Jinja2
 environment — the adapter-name check has no way to catch a wrong
 *filter*. `run_agent()` now also actually trial-renders every candidate
-answer (`_render_error()`, reusing `app.aggregator.
-render_single_expression()` — the exact same call the real Preview
-endpoint makes) before accepting it, catching any render failure, not
+answer (`_render_error()`, rendering the way `app.state_templates.
+render_single_expression()` — the real Preview — does) before accepting it, catching any render failure, not
 just wrong adapter names. Left alone, the model kept guessing different
 nonexistent filters across corrective turns (`intcomma`,
 `format_thousands`, `format_markdown`) without ever landing on a working
@@ -300,8 +317,8 @@ so `OLLAMA_MODEL` now defaults to it. It's ~9GB, which still fits a
 1080 Ti (11GB VRAM). The same session tightened what `run_agent()`
 accepts: the editor's current text is part of the prompt, generated
 answers are trial-rendered with StrictUndefined (a guessed field name is
-an error, not a blank), and a correction for a guessed field lists that
-adapter's real field names.
+an error, not a blank), and a correction for a guessed field lists the
+real field names at that point of the path.
 
 ## Security / network exposure
 Both the HTTP API and MQTT broker are bound to all interfaces (Docker's
@@ -327,11 +344,11 @@ the ESP32 client needs to reach both from elsewhere on the network.
   - Users live in Postgres (`users`, `sessions`, `audit_log`); passwords are
     Argon2id; sessions are server-side with an opaque HttpOnly cookie (only its
     SHA-256 is stored) and a per-session CSRF token required on every write.
-  - Roles: `viewer` (read) and `admin` (everything, incl. adapters and
+  - Roles: `viewer` (read) and `admin` (everything, incl. connections and
     their credentials, restart, user management). Failed logins are throttled
     per account and per IP; logins and every state-changing call are recorded
     in `audit_log` (request bodies are never logged, only a few safe keys).
-  - Postgres being down never stops polling/MQTT publishing — only login.
+  - Postgres being down never stops button presses or MQTT — only login.
     Likewise the MQTT broker being down never stops the app, even at
     startup (since 2026-09-28; before that, an unreachable broker made
     startup fail). The app starts, the UI stays up, publishing retries at
@@ -349,8 +366,8 @@ the ESP32 client needs to reach both from elsewhere on the network.
     survives. The server re-runs that check on save, not just on "Test". If
     a saved database later dies, the recovery path is to delete its section
     from the file (see `docs/database.md`), since the UI is unreachable. A
-    blank password field in these forms reuses the running password,
-    matching the adapter forms: an admin could point it at a host they
+    blank password field in these forms reuses the running password
+    (the Home Assistant form does the same with its token): an admin could point it at a host they
     control and capture it. That's accepted, because admins already hold
     every other credential in the app.
   - **The Settings page** (`app/app_settings.py`, since 2026-09-28) covers
@@ -406,28 +423,19 @@ the ESP32 client needs to reach both from elsewhere on the network.
   (unlike another-stack's older Streamlit component, which predates it
   moving to compose and still runs via systemd + a venv).
 - **Config is not in git (changed 2026-09-19).** The live
-  `adapters.yaml`/`actions.yaml`/`device.yaml`/`secrets.enc.yaml` live in
+  `connections.yaml`/`actions.yaml`/`device.yaml`/`secrets.enc.yaml` live in
   `/opt/desk-dashboard-data/config` on the host, mounted at `/app/config`
   — edited through the running app, so live edits never show up as git
   diffs. `config.example/` in the repo is the template for a fresh
   deploy. This replaces the earlier "gospel configs in git, secrets out
-  of git" convention. Per-adapter credentials are Fernet-encrypted in
+  of git" convention. Passwords and tokens are Fernet-encrypted in
   `secrets.enc.yaml` (`app/secret_store.py`, referenced from
-  `adapters.yaml` as `password: {secret: <name>}`); the one value held in
-  the clear is `SECRETS_MASTER_KEY` in the gitignored `.env`, alongside
-  the non-adapter secrets (MQTT, Ollama) which stay as `${VAR}`.
-  Adapters are managed from the editor's **Adapters** tab (forms
-  rendered from each adapter class's `required_fields`): add, edit
-  (blank secret = keep), remove (with a warning for actions that
-  use it, and its now-unused secrets deleted), and a **Test
-  connection** that runs one fetch() with the values as typed without
-  saving anything. Changes take effect after a restart, which the tab's
-  *Restart app* button does by SIGTERM-ing the process so Docker's
-  `restart: unless-stopped` brings it back — no docker socket mounted.
-  **Since 2026-09-21, adapter management (like everything else) requires an
-  admin login** — see the "Security / network exposure" section above and
-  `docs/plan-ui-and-auth.md`. This note previously said it was
-  unauthenticated; that's no longer true and was stale.
+  `connections.yaml` as `password: {secret: <name>}`); the one value held
+  in the clear is `SECRETS_MASTER_KEY` in the gitignored `.env`. The
+  Connections page's *Restart* (after a broker or database change)
+  SIGTERMs the process so Docker's `restart: unless-stopped` brings it
+  back — no docker socket mounted. (Until 2026-09-29 there was also an
+  Adapters page and `adapters.yaml`; see "What the bedside dropped".)
 - Good Docker Swarm candidate — stateless, no GPU/hardware coupling
 - Homelab repo: github.com/traviswolverton/homelab (for reference/context on
   existing conventions, not necessarily where this new repo lives)
@@ -448,14 +456,9 @@ the ESP32 client needs to reach both from elsewhere on the network.
   if it's ever exposed beyond the LAN. (2026-09-26 added the Actions
   menu's `bedside/action` topics; removed 2026-09-29 with the menu. The
   current accounts and topics are in `docs/mqtt-broker.md`.)
-- ~~Build adapters incrementally~~ — 7 adapters built in `app/adapters/`.
-  Verified 2026-09-23 by polling each once against the real homelab
-  service: AdGuard Home, Uptime Kuma, Frigate (since removed), UniFi, Tracearr and Proxmox
-  VE 9.2 all returned `ok` with every `context` field populated (the only
-  empty ones were lists with nothing to report, e.g. no monitors down).
-  **Still open: TrueNAS** — built from the documented API only, not yet
-  configured against the real box (and iX has deprecated the REST API it
-  uses, so it may need porting to JSON-RPC).
+- ~~Build adapters incrementally~~ — built for the desk unit (AdGuard
+  Home, Uptime Kuma, Frigate, UniFi, Tracearr, Proxmox, TrueNAS); all
+  removed from the bedside 2026-09-29, which talks only to Home Assistant.
 - Scheduled ntfy digest (push a summary of live data at a configured time,
   e.g. daily 7am) — see `docs/plan-ntfy-digest.md`. Proposed 2026-09-22, not
   yet implemented; three open questions in that doc (ntfy.sh vs. self-hosted,

@@ -1,5 +1,5 @@
-"""The Connections page: which MQTT broker and Postgres database this app
-uses (app/connections.py). Admins only.
+"""The Connections page: which MQTT broker, Postgres database and Home
+Assistant this app uses (app/connections.py). Admins only.
 
 Each change is a small flow, like Home Assistant's: the form's values are
 tested first (POST .../test, which saves nothing), the page shows what
@@ -13,11 +13,18 @@ blank password in a form means "keep the one in use now".
 
 The Display section is the broker the bedside device is handed by GET
 /device/config. Saving it needs no restart (that endpoint reads the file
-each time); the device picks it up at its next check-in."""
+each time); the device picks it up at its next check-in.
+
+Home Assistant needs no restart either: a save swaps the client in place.
+Its entity and service lists for the Actions editor's pickers are here
+too (GET /home-assistant/catalog)."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Literal
+
+import httpx
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -29,14 +36,18 @@ from app.connections import (
     check_mqtt,
     copy_database,
     database_from_form,
+    home_assistant_from_form,
     inspect_database,
     load_display,
+    load_home_assistant,
     mqtt_from_form,
     new_device_token,
     save_database,
     save_display_broker,
+    save_home_assistant,
     save_mqtt,
 )
+from app.home_assistant import HomeAssistant
 from app.secret_store import SecretError
 from app.settings import settings
 
@@ -94,6 +105,7 @@ async def get_connections(request: Request) -> dict[str, object]:
             "available": bool(database and database.available),
         },
         "display": _display_summary(request),
+        "home_assistant": await _home_assistant_summary(request),
         "can_save": bool(settings.secrets_master_key),
     }
 
@@ -109,6 +121,16 @@ def _display_summary(request: Request) -> dict[str, object]:
         "password_set": bool(broker and broker.password),
         "token_set": display.token_set,
         "last_seen": getattr(request.app.state, "device_last_seen", None),
+    }
+
+
+async def _home_assistant_summary(request: Request) -> dict[str, object]:
+    conn = load_home_assistant(settings)
+    return {
+        "url": conn.url if conn else None,
+        "verify_ssl": conn.verify_ssl if conn else True,
+        "token_set": bool(conn and conn.token),
+        "status": await request.app.state.home_assistant.status(),
     }
 
 
@@ -242,3 +264,71 @@ async def make_device_token() -> dict[str, object]:
         raise HTTPException(status_code=500, detail=str(exc))
     logger.warning("new display device token issued via the admin API")
     return {"token": token}
+
+
+# --- Home Assistant ------------------------------------------------------------
+
+def _home_assistant_form(body: ConnectionForm):
+    current = load_home_assistant(settings)
+    try:
+        return home_assistant_from_form(body.fields, current.token if current else None)
+    except ConnectionConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+def _redact(message: str, secret: str | None) -> str:
+    if secret and len(secret) >= 4:
+        message = message.replace(secret, "***")
+    return message.splitlines()[0][:300] if message else message
+
+
+async def _check_home_assistant(conn) -> dict[str, object]:
+    ha = HomeAssistant(conn.url, conn.token or "", conn.verify_ssl)
+    try:
+        async with httpx.AsyncClient() as client:
+            found = await asyncio.wait_for(ha.check(client), timeout=20)
+    except httpx.HTTPStatusError as exc:
+        code = exc.response.status_code
+        error = ("Home Assistant refused the token (401): make a new long-lived access token"
+                 if code == 401 else f"Home Assistant answered {code}")
+        return {"ok": False, "error": error}
+    except Exception as exc:  # noqa: BLE001 - any failure is the answer to "does it connect?"
+        if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
+            return {"ok": False, "error": f"No answer from {conn.url}"}
+        return {"ok": False, "error": _redact(str(exc) or type(exc).__name__, conn.token)}
+    finally:
+        await ha.aclose()
+    return {"ok": True, "error": None, **found}
+
+
+@router.post("/connections/home-assistant/test")
+async def test_home_assistant(body: ConnectionForm) -> dict[str, object]:
+    return await _check_home_assistant(_home_assistant_form(body))
+
+
+@router.put("/connections/home-assistant")
+async def save_home_assistant_connection(request: Request, body: ConnectionForm) -> dict[str, object]:
+    conn = _home_assistant_form(body)
+    _require_master_key()
+    result = await _check_home_assistant(conn)
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=f"Not saved: the test failed ({result['error']})")
+    try:
+        save_home_assistant(settings.connections_config_path, settings.secrets_config_path, conn)
+    except (SecretError, ConnectionConfigError) as exc:
+        raise HTTPException(status_code=500, detail=f"Couldn't save the connection: {exc}")
+    await request.app.state.home_assistant.replace(HomeAssistant(conn.url, conn.token or "", conn.verify_ssl))
+    logger.warning("Home Assistant changed to %s via the admin API", conn.url)
+    return {"saved": True}
+
+
+@router.get("/home-assistant/catalog")
+async def home_assistant_catalog(request: Request) -> dict[str, object]:
+    """Every entity and service: the Actions editor's pickers."""
+    link = request.app.state.home_assistant
+    if link.ha is None:
+        raise HTTPException(status_code=409, detail="Home Assistant isn't set up (Connections page)")
+    try:
+        return await asyncio.wait_for(link.ha.catalog(link.client), timeout=20)
+    except Exception as exc:  # noqa: BLE001 - reported to the page
+        raise HTTPException(status_code=502, detail=f"couldn't read Home Assistant: {type(exc).__name__}")

@@ -1,19 +1,16 @@
 """The bedside device (app/device.py): device.yaml, what the device reports,
 button presses running their bound Actions (with confirm and sounds), Home
-Assistant discovery, the bedside_device adapter, and the API."""
+Assistant discovery, and the API."""
 from __future__ import annotations
 
 import asyncio
 import json
-import time
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.actions import ActionRunner, save_action
-from app.adapters.bedside_device import BedsideDeviceAdapter
-from app.aggregator import Aggregator
 from app.api import router as api_router
 from app.device import (
     NUM_BUTTONS,
@@ -28,9 +25,10 @@ from app.device import (
     load_device_config,
     save_device_config,
 )
+from app.home_assistant import HomeAssistantLink
 from app.settings import settings
 from tests.auth_helpers import bypass_auth
-from tests.test_actions import SwitchAdapter, _lamp
+from tests.test_actions import SwitchHA, _lamp
 
 
 @pytest.fixture
@@ -47,7 +45,6 @@ def state(monkeypatch):
     """A fresh DeviceState standing in for the module-level one."""
     fresh = DeviceState()
     monkeypatch.setattr("app.device.device_state", fresh)
-    monkeypatch.setattr("app.adapters.bedside_device.device_state", fresh)
     monkeypatch.setattr("app.api.device.device_state", fresh)
     return fresh
 
@@ -106,10 +103,10 @@ def test_invalid_sound_settings_are_rejected(sounds):
 
 # --- what the device reports ------------------------------------------------------
 
-def _link(paths, state, adapter=None):
+def _link(paths, state, ha=None):
     device, actions = paths
-    agg = Aggregator(adapters=[adapter or SwitchAdapter()], client=None)
-    return MqttDeviceLink(state, ActionRunner(agg, str(actions)), str(device))
+    runner = ActionRunner(HomeAssistantLink(ha or SwitchHA(), None), str(actions))
+    return MqttDeviceLink(state, runner, str(device))
 
 
 async def test_sensors_and_availability_are_recorded(paths, state):
@@ -141,12 +138,12 @@ async def test_a_bound_press_runs_its_action(paths, state):
     device, actions = paths
     save_action(str(actions), _lamp())
     save_device_config(str(device), DeviceConfig(buttons={3: ButtonBinding(long="desk_lamp")}))
-    adapter = SwitchAdapter()
-    link = _link(paths, state, adapter)
+    ha = SwitchHA()
+    link = _link(paths, state, ha)
 
     await link.handle(settings.mqtt_button_topic, b'{"button":3,"press":"long"}')
 
-    assert adapter.runs == ["desk_lamp"]
+    assert ha.runs == ["desk_lamp"]
     press = state.presses[0]
     assert (press.button, press.press, press.action, press.ok, press.text) == \
         (3, "long", "desk_lamp", True, "Done")
@@ -156,12 +153,12 @@ async def test_an_unbound_press_is_only_recorded(paths, state):
     device, actions = paths
     save_action(str(actions), _lamp())
     save_device_config(str(device), DeviceConfig(buttons={3: ButtonBinding(long="desk_lamp")}))
-    adapter = SwitchAdapter()
-    link = _link(paths, state, adapter)
+    ha = SwitchHA()
+    link = _link(paths, state, ha)
 
     await link.handle(settings.mqtt_button_topic, b'{"button":3,"press":"short"}')
 
-    assert adapter.runs == []
+    assert ha.runs == []
     assert state.presses[0].action is None and state.presses[0].ok is None
 
 
@@ -193,8 +190,8 @@ class _FakeMqtt:
         return [json.loads(p)["sound"] for t, p in self.sent if t == settings.mqtt_sound_topic]
 
 
-def _connected_link(paths, state, adapter=None):
-    link = _link(paths, state, adapter)
+def _connected_link(paths, state, ha=None):
+    link = _link(paths, state, ha)
     link._client = _FakeMqtt()
     return link, link._client
 
@@ -218,7 +215,7 @@ async def test_a_plain_action_plays_running_then_success(paths, state):
 
 async def test_a_failure_is_urgent_so_it_plays_loud_in_the_dark(paths, state):
     _bind(paths, ButtonBinding(short="desk_lamp"))
-    link, mqtt = _connected_link(paths, state, SwitchAdapter(fail=True))
+    link, mqtt = _connected_link(paths, state, SwitchHA(fail=True))
     await _press(link, 3)
     assert [json.loads(p) for _, p in mqtt.sent] == [
         {"sound": "running", "urgent": False}, {"sound": "failure", "urgent": True}]
@@ -226,15 +223,15 @@ async def test_a_failure_is_urgent_so_it_plays_loud_in_the_dark(paths, state):
 
 async def test_a_confirm_action_needs_the_same_press_twice(paths, state):
     _bind(paths, ButtonBinding(long="desk_lamp"), confirm=True)
-    adapter = SwitchAdapter()
-    link, mqtt = _connected_link(paths, state, adapter)
+    ha = SwitchHA()
+    link, mqtt = _connected_link(paths, state, ha)
 
     await _press(link, 3, "long")
-    assert adapter.runs == [] and mqtt.sounds() == ["armed"]
+    assert ha.runs == [] and mqtt.sounds() == ["armed"]
     assert state.presses[0].text == "Armed"
 
     await _press(link, 3, "long")
-    assert adapter.runs == ["desk_lamp"]
+    assert ha.runs == ["desk_lamp"]
     assert mqtt.sounds() == ["armed", "running", "success"]
     assert (state.presses[0].ok, state.presses[0].text) == (True, "Done")
 
@@ -246,12 +243,12 @@ async def test_anything_else_while_armed_cancels_and_does_nothing_more(paths, st
     save_action(str(actions), _lamp(id="hall_lamp", label="Hall lamp"))
     save_device_config(str(device), DeviceConfig(buttons={
         3: ButtonBinding(short="hall_lamp", long="desk_lamp"), 4: ButtonBinding(long="hall_lamp")}))
-    adapter = SwitchAdapter()
-    link, mqtt = _connected_link(paths, state, adapter)
+    ha = SwitchHA()
+    link, mqtt = _connected_link(paths, state, ha)
 
     await _press(link, 3, "long")
     await _press(link, *second)
-    assert adapter.runs == []  # neither the armed action nor the second press's own
+    assert ha.runs == []  # neither the armed action nor the second press's own
     assert mqtt.sounds() == ["armed", "cancel"]
     assert state.presses[0].text == "Cancelled"
 
@@ -262,23 +259,23 @@ async def test_anything_else_while_armed_cancels_and_does_nothing_more(paths, st
 async def test_an_armed_action_times_out_with_a_blip(paths, state, monkeypatch):
     monkeypatch.setattr("app.device.CONFIRM_SECONDS", 0.05)
     _bind(paths, ButtonBinding(short="desk_lamp"), confirm=True)
-    adapter = SwitchAdapter()
-    link, mqtt = _connected_link(paths, state, adapter)
+    ha = SwitchHA()
+    link, mqtt = _connected_link(paths, state, ha)
 
     await _press(link, 3)
     await asyncio.sleep(0.2)
     assert mqtt.sounds() == ["armed", "cancel"]
 
     await _press(link, 3)  # the window closed: this arms again rather than running
-    assert adapter.runs == [] and mqtt.sounds() == ["armed", "cancel", "armed"]
+    assert ha.runs == [] and mqtt.sounds() == ["armed", "cancel", "armed"]
 
 
 async def test_sounds_without_a_connection_are_dropped_quietly(paths, state):
     _bind(paths, ButtonBinding(short="desk_lamp"))
-    adapter = SwitchAdapter()
-    link = _link(paths, state, adapter)
+    ha = SwitchHA()
+    link = _link(paths, state, ha)
     await _press(link, 3)
-    assert adapter.runs == ["desk_lamp"]
+    assert ha.runs == ["desk_lamp"]
     assert await link.publish_sound("success") is False
 
 
@@ -305,36 +302,6 @@ def test_trigger_payloads_match_what_the_firmware_sends_byte_for_byte():
         messages["homeassistant/device_automation/bedside_dashboard/button_5_long/config"])
     assert trigger["payload"] == '{"button":5,"press":"long"}'
     assert trigger["topic"] == "bedside/button"
-
-
-# --- the bedside_device adapter --------------------------------------------------
-
-async def test_adapter_is_down_until_the_device_reports(state):
-    result = await BedsideDeviceAdapter("bedroom").fetch(None)
-    assert result.status == "down"
-    assert result.context["temperature_c"] is None
-
-
-async def test_adapter_exposes_the_readings(paths, state):
-    link = _link(paths, state)
-    await link.handle(settings.mqtt_availability_topic, b"online")
-    await link.handle(settings.mqtt_sensors_topic,
-                      b'{"temperature_c":20,"humidity":50,"lux":3.5,"screen":"dim"}')
-    result = await BedsideDeviceAdapter("bedroom").fetch(None)
-    assert result.status == "ok"
-    assert result.context["temperature_f"] == 68.0
-    assert result.context["lux"] == 3.5 and result.context["screen"] == "dim"
-    assert result.detail == "50% humidity"
-
-
-async def test_adapter_warns_on_a_stale_report(paths, state):
-    link = _link(paths, state)
-    await link.handle(settings.mqtt_availability_topic, b"online")
-    await link.handle(settings.mqtt_sensors_topic, b'{"temperature_c":20}')
-    state.sensors_at = time.time() - 600
-    result = await BedsideDeviceAdapter("bedroom").fetch(None)
-    assert result.status == "warn"
-    assert result.context["status_reason"].startswith("No report from the device for 6")
 
 
 # --- the API ---------------------------------------------------------------------

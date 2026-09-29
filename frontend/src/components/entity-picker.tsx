@@ -5,13 +5,13 @@ import { LoadError, LoadingBlocks } from '@/components/query-state'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import type { AdapterCatalog } from '@/lib/types'
+import type { HomeAssistantCatalog } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 /** The most rows drawn at once; a filter narrows a big install down. */
 const MAX_SHOWN = 200
 
-/** Choose entities from an adapter's catalog (Home Assistant's entity list).
+/** Choose entities from Home Assistant's entity list.
  *  `multiple`: toggle any number, applied with Done. Otherwise one click picks. */
 export function EntityPicker({
   open,
@@ -31,7 +31,7 @@ export function EntityPicker({
   description: string
   /** Identifies what `load` fetches, for caching while the dialog reopens. */
   queryKey: readonly unknown[]
-  load: () => Promise<AdapterCatalog>
+  load: () => Promise<HomeAssistantCatalog>
   multiple?: boolean
   selected?: string[]
   /** Starting filter text, e.g. "light." for a light service. */

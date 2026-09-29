@@ -202,9 +202,8 @@ class DeviceState:
         return (now if now is not None else time.time()) - self.sensors_at
 
 
-#: The one device this service talks to. Module-level (not app.state) so the
-#: bedside_device adapter, which is built from adapters.yaml and never sees
-#: the app, can read it too.
+#: The one device this service talks to. Module-level (not app.state) so
+#: anything can read it without the app, e.g. app.ai_assist.
 device_state = DeviceState()
 
 

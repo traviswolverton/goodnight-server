@@ -1,8 +1,8 @@
 /** Helpers for the variables panel: finding, filtering and writing template paths. */
 
 /** `*text*` = contains. Otherwise the term must prefix any dot-separated
- *  segment: keys are always `adapters.<name>.<field>`, so a plain startsWith
- *  could never match "adg" against "adapters.adguard_main.percent_blocked". */
+ *  segment: keys are always `<group>.<field>`, so a plain startsWith could
+ *  never match "temp" against "device.temperature_c". */
 export function matchesFilter(key: string, term: string): boolean {
   const needle = term.trim().toLowerCase()
   if (!needle) return true
@@ -15,7 +15,7 @@ export function matchesFilter(key: string, term: string): boolean {
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
 
-/** A template path from its keys: `adapters.home_assistant.entities['light.desk'].state`.
+/** A template path from its keys: `states['light.desk'].state`.
  *  A key that isn't a plain identifier (entity ids have dots in them) needs
  *  bracket notation, or Jinja2 would read its dots as more lookups. */
 export function templatePath(segments: string[]): string {

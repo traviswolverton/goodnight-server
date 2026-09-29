@@ -4,6 +4,8 @@ Run, which really does switch something) are admin-only and audited, via
 the router's dependencies in app/api/__init__.py."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import ValidationError
 
@@ -17,31 +19,50 @@ from app.actions import (
     load_actions,
     save_action,
 )
-from app.aggregator import build_multi_source_context, render_single_expression
-from app.api.deps import _get_aggregator
+from app.device import device_state
 from app.settings import settings
+from app.state_templates import device_context, render_single_expression, template_context
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _action_view(action: ActionConfig, context: dict[str, object]) -> dict[str, object]:
+async def _context(request: Request) -> tuple[dict[str, object], str | None]:
+    """The live template context, and why Home Assistant's half of it is
+    empty (None when it isn't). Never the raw error: it can name internal
+    hosts, and this is open to viewers; the app log has it."""
+    link = request.app.state.home_assistant
+    problem = None
+    try:
+        states = await link.states()
+    except Exception as exc:  # noqa: BLE001 - states just go blank
+        logger.warning("couldn't read Home Assistant's states: %s", exc)
+        states, problem = {}, "Home Assistant can’t be reached, so states are blank."
+    if link.ha is None:
+        problem = "Home Assistant isn’t set up."
+    return template_context(states, device_context(device_state)), problem
+
+
+def _action_view(action: ActionConfig, context: dict[str, object], problem: str | None) -> dict[str, object]:
     state = error = None
     if action.state_template:
         rendered, error = render_single_expression(action.state_template, context)
         state = fit_state(rendered)
+        if problem:
+            error = None  # the page says why once, not on every action
     return {**action.model_dump(), "resolved_state": state, "state_error": error}
 
 
 @router.get("/actions")
 async def list_actions(request: Request) -> dict[str, object]:
-    aggregator = _get_aggregator(request)
-    context = build_multi_source_context(aggregator.latest_results)
+    context, problem = await _context(request)
     return {
-        "actions": [_action_view(a, context) for a in load_actions(settings.actions_config_path)],
-        # Running adapters that can perform actions, and which kinds.
-        "adapters": [{"name": a.name, "type": a.type_name, "kinds": list(a.action_kinds)}
-                     for a in aggregator.adapters if a.action_kinds],
-        "context": context,
+        "actions": [_action_view(a, context, problem) for a in load_actions(settings.actions_config_path)],
+        "home_assistant": {"set_up": request.app.state.home_assistant.ha is not None, "problem": problem},
+        # Only the device's readings: every entity would be thousands of
+        # values, and viewers can read this. The editor's entity picker
+        # (admin-only) covers Home Assistant.
+        "context": {"device": context["device"]},
         "limits": {"label_max": LABEL_MAX, "state_max": STATE_MAX},
     }
 
@@ -95,6 +116,6 @@ async def run_action(request: Request, action_id: str) -> dict[str, object]:
 async def preview_action_state(request: Request, body: dict) -> dict[str, object]:
     """Render an unsaved state_template against live data."""
     template = str(body.get("state_template") or "")
-    context = build_multi_source_context(_get_aggregator(request).latest_results)
+    context, problem = await _context(request)
     rendered, error = render_single_expression(template, context)
-    return {"rendered": rendered, "state": fit_state(rendered), "error": error}
+    return {"rendered": rendered, "state": fit_state(rendered), "error": error, "problem": problem}

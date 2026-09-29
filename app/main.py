@@ -1,10 +1,10 @@
 """FastAPI entrypoint. Owns the app lifecycle: on startup, load config,
-start the adapter poll loop and the device's MQTT link as background
-tasks; on shutdown, stop them cleanly.
+connect to Home Assistant and start the device's MQTT link as a
+background task; on shutdown, stop it cleanly.
 
-Run a single worker/process — the poll loop and the device link are
-in-process state, so multiple workers would each poll independently and
-handle every button press twice. See DESIGN.md deployment notes.
+Run a single worker/process — the device link is in-process state, so
+multiple workers would each handle every button press. See DESIGN.md
+deployment notes.
 """
 from __future__ import annotations
 
@@ -16,14 +16,12 @@ import httpx
 from fastapi import FastAPI
 
 from app.actions import ActionRunner
-from app.adapters import ADAPTER_REGISTRY  # noqa: F401 - ensures adapters register
-from app.aggregator import Aggregator
 from app.api import router as api_router
-from app.config import load_adapters
 from app.app_settings import SavedSettings
-from app.connections import apply_saved_connections
+from app.connections import apply_saved_connections, import_home_assistant_adapter, load_home_assistant
 from app.db import Database
 from app.device import MqttDeviceLink, device_state
+from app.home_assistant import HomeAssistant, HomeAssistantLink
 from app.auth.bootstrap import bootstrap_admin
 from app.auth.retention import prune_audit_log
 from app.routes import router
@@ -44,24 +42,24 @@ async def lifespan(app: FastAPI):
     app.state.saved_settings.apply(settings, settings.app_settings_path)
     http_client = httpx.AsyncClient()
 
-    adapters = load_adapters(settings.adapters_config_path)
-    logger.info("loaded %d adapter(s): %s", len(adapters), [a.name for a in adapters])
+    import_home_assistant_adapter(settings)
+    ha_conn = load_home_assistant(settings)
+    home_assistant = HomeAssistantLink(
+        HomeAssistant(ha_conn.url, ha_conn.token or "", ha_conn.verify_ssl) if ha_conn else None, http_client)
+    logger.info("Home Assistant: %s", ha_conn.url if ha_conn else "not set up (Connections page)")
 
     database = Database(settings.database_url)
     database.on_ready(bootstrap_admin)
     database.on_ready(prune_audit_log)
     database.start()  # background connect/migrate; never blocks or fails startup
 
-    aggregator = Aggregator(adapters=adapters, client=http_client)
-    loop_task = asyncio.create_task(aggregator.run_forever())
-
-    action_runner = ActionRunner(aggregator, settings.actions_config_path)
+    action_runner = ActionRunner(home_assistant, settings.actions_config_path)
 
     device_link = MqttDeviceLink(device_state, action_runner, settings.device_config_path)
     device_task = asyncio.create_task(device_link.run_forever())
 
     app.state.http_client = http_client
-    app.state.aggregator = aggregator
+    app.state.home_assistant = home_assistant
     app.state.action_runner = action_runner
     app.state.device_link = device_link
     app.state.database = database
@@ -69,16 +67,13 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        aggregator.stop()
-        await loop_task
         device_task.cancel()
         try:
             await device_task
         except asyncio.CancelledError:
             pass
         await database.stop()
-        for adapter in adapters:
-            await adapter.aclose()
+        await home_assistant.aclose()
         await http_client.aclose()
 
 

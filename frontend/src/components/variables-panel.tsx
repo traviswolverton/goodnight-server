@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ChevronRight, Copy, Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import { StatusGlyph, type AnyStatus } from '@/components/status-pill'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -19,7 +18,8 @@ function preview(value: unknown): string {
   return text.length > 60 ? `${text.slice(0, 57)}…` : text
 }
 
-/** Every value templates can use, live, grouped by adapter. With `onInsert`,
+/** Live values a template can use, grouped by their top-level name (e.g.
+ *  `device`). With `onInsert`,
  *  each value's + puts `{{ path }}` into the field that opened the panel and
  *  the panel stays open for more; without it (read-only), + copies instead.
  *  Not modal: the field stays visible and usable beside it. */
@@ -38,10 +38,10 @@ export function VariablesPanel({
   onInsert?: (path: string) => void
 }) {
   const [term, setTerm] = useState('')
-  const adapters = useMemo(() => (isBranch(context.adapters) ? context.adapters : {}) as Node, [context])
+  const groups = useMemo(() => Object.fromEntries(Object.entries(context).filter(([, v]) => isBranch(v))) as Node, [context])
   const matches = useMemo(
-    () => (term.trim() ? flattenSegments({ adapters }).filter(([segments]) => matchesFilter(templatePath(segments), term)) : []),
-    [adapters, term],
+    () => (term.trim() ? flattenSegments(groups).filter(([segments]) => matchesFilter(templatePath(segments), term)) : []),
+    [groups, term],
   )
 
   function use(segments: string[]) {
@@ -73,14 +73,14 @@ export function VariablesPanel({
           <Input
             type="search"
             aria-label="Filter variables"
-            placeholder="Filter — e.g. adg (prefix) or *volume* (contains)"
+            placeholder="Filter — e.g. temp (prefix) or *lux* (contains)"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
           />
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          {Object.keys(adapters).length === 0 ? (
-            <p className="p-2 text-sm text-muted-foreground">No adapters have completed a poll yet.</p>
+          {Object.keys(groups).length === 0 ? (
+            <p className="p-2 text-sm text-muted-foreground">Nothing to show yet.</p>
           ) : term.trim() ? (
             matches.length === 0 ? (
               <p className="p-2 text-sm text-muted-foreground">No variables match “{term}”.</p>
@@ -89,7 +89,7 @@ export function VariablesPanel({
                 {matches.map(([segments, value]) => (
                   <Leaf
                     key={segments.join('\u0000')}
-                    label={templatePath(segments.slice(1))}
+                    label={templatePath(segments)}
                     name={templatePath(segments)}
                     value={value}
                     onUse={() => use(segments)}
@@ -99,18 +99,9 @@ export function VariablesPanel({
               </ul>
             )
           ) : (
-            <ul aria-label="Adapters">
-              {Object.entries(adapters).map(([name, fields]) => (
-                <Branch
-                  key={name}
-                  label={name}
-                  node={isBranch(fields) ? fields : {}}
-                  path={['adapters', name]}
-                  depth={0}
-                  status={isBranch(fields) ? (fields.status as AnyStatus | undefined) : undefined}
-                  onUse={use}
-                  copy={!onInsert}
-                />
+            <ul aria-label="Variables">
+              {Object.entries(groups).map(([name, fields]) => (
+                <Branch key={name} label={name} node={fields as Node} path={[name]} depth={0} onUse={use} copy={!onInsert} />
               ))}
             </ul>
           )}
@@ -125,7 +116,6 @@ function Branch({
   node,
   path,
   depth,
-  status,
   onUse,
   copy,
 }: {
@@ -133,7 +123,6 @@ function Branch({
   node: Node
   path: string[]
   depth: number
-  status?: AnyStatus
   onUse: (segments: string[]) => void
   copy: boolean
 }) {
@@ -151,7 +140,6 @@ function Branch({
         )}
       >
         <ChevronRight className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-90')} aria-hidden="true" />
-        {status && <StatusGlyph status={status} />}
         <span className="min-w-0 truncate">{label}</span>
         <span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground">{count}</span>
       </button>

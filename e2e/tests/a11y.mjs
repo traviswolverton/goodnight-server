@@ -26,22 +26,22 @@ await audit('login (light)')
 await t.login(ADMIN.u, ADMIN.p)
 for (const theme of ['light', 'dark']) {
   await setTheme(theme)
-  for (const p of ['/', '/device', '/buttons', '/actions', '/adapters', '/users', '/mqtt', '/profile']) {
+  for (const p of ['/', '/device', '/buttons', '/actions', '/connections', '/users', '/mqtt', '/profile']) {
     await goto(p)
     await page.waitForFunction(() => !document.querySelector('[aria-busy=true]'), { timeout: 8000 }).catch(() => {})
     await audit(`${p} (${theme})`)
   }
 
-  await goto('/adapters')
-  await page.locator('::-p-aria(Add adapter)').click()
+  await goto('/connections')
+  await page.locator('main button ::-p-text(Change)').click()
   await page.waitForSelector('[role=dialog]')
-  await audit(`add-adapter dialog (${theme})`)
+  await audit(`Home Assistant dialog (${theme})`)
   await page.keyboard.press('Escape')
 
-  await page.locator('::-p-aria(Remove adguard_main)').click()
-  await page.waitForSelector('[role=alertdialog]')
-  await audit(`remove-adapter confirmation (${theme})`)
-  await page.keyboard.press('Escape')
+  await goto('/actions')
+  await page.locator('::-p-text(Add action)').click()
+  await page.waitForSelector('main form')
+  await audit(`action editor (${theme})`)
 
   await goto('/users')
   await page.locator('::-p-aria(Add user)').click()

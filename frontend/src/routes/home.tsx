@@ -1,13 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { Database, Radio, Timer } from 'lucide-react'
+import { Database, House, Radio } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { LoadError, LoadingBlocks } from '@/components/query-state'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useNow } from '@/hooks/use-now'
 import { usePageTitle } from '@/hooks/use-page-title'
-import { timeAgo } from '@/lib/format'
 import { overviewQuery } from '@/lib/queries'
-import type { Overview } from '@/lib/types'
+import type { HomeAssistantStatus, Overview } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 function Fact({ icon: Icon, label, value, ok }: { icon: typeof Radio; label: string; value: string; ok?: boolean }) {
@@ -22,19 +20,26 @@ function Fact({ icon: Icon, label, value, ok }: { icon: typeof Radio; label: str
   )
 }
 
-function Health({ overview, now }: { overview: Overview; now: number }) {
+const HOME_ASSISTANT_TEXT: Record<HomeAssistantStatus, string> = {
+  connected: 'Connected',
+  unreachable: 'Can’t be reached',
+  not_set_up: 'Not set up',
+}
+
+function Health({ overview }: { overview: Overview }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>System health</CardTitle>
-        <CardDescription>
-          {overview.last_poll_ts === null
-            ? 'Waiting for the first poll…'
-            : `Adapters are polled every ${overview.poll_interval_seconds} s.`}
-        </CardDescription>
+        <CardDescription>What this app connects to. Buttons need Home Assistant and the MQTT broker.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-3">
-        <Fact icon={Timer} label="Last poll" value={timeAgo(overview.last_poll_ts, now)} />
+        <Fact
+          icon={House}
+          label="Home Assistant"
+          value={HOME_ASSISTANT_TEXT[overview.home_assistant]}
+          ok={overview.home_assistant === 'connected'}
+        />
         <Fact
           icon={Radio}
           label="MQTT broker"
@@ -54,7 +59,6 @@ function Health({ overview, now }: { overview: Overview; now: number }) {
 
 export function HomePage({ username }: { username: string }) {
   usePageTitle()
-  const now = useNow()
   const overview = useQuery(overviewQuery)
 
   return (
@@ -66,7 +70,7 @@ export function HomePage({ username }: { username: string }) {
         ) : overview.error ? (
           <LoadError error={overview.error} retry={() => void overview.refetch()} />
         ) : (
-          <Health overview={overview.data} now={now} />
+          <Health overview={overview.data} />
         )}
       </div>
     </>

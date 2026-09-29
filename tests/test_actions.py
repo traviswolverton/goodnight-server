@@ -17,29 +17,29 @@ from app.actions import (
     load_actions,
     save_action,
 )
-from app.adapters.base import Adapter
-from app.aggregator import Aggregator
 from app.api import router as api_router
-from app.models import AdapterResult
+from app.home_assistant import HomeAssistantLink
 from app.settings import settings
 from tests.auth_helpers import bypass_auth
 
 
-class SwitchAdapter(Adapter):
-    """Pretends to be Home Assistant: one light, toggled by actions."""
+class SwitchHA:
+    """Pretends to be Home Assistant (app.home_assistant.HomeAssistant):
+    one light, toggled by actions."""
 
-    type_name = "switch"
-    action_kinds = ("service",)
-
-    def __init__(self, name: str = "home", fail: bool = False) -> None:
-        super().__init__(name)
-        self.on = False
+    def __init__(self, fail: bool = False, on: bool = False) -> None:
+        self.on = on
         self.fail = fail
         self.runs: list[str] = []
 
-    async def fetch(self, client):
-        return AdapterResult(name=self.name, status="ok",
-                             context={"entities": {"light.desk": {"state": "on" if self.on else "off"}}})
+    async def states(self, client):
+        return {"light.desk": {"entity_id": "light.desk", "state": "on" if self.on else "off"}}
+
+    async def read_states(self, client, entity_ids):
+        raise RuntimeError("this one can't check")
+
+    async def aclose(self):
+        pass
 
     async def run_action(self, client, action):
         if self.fail:
@@ -50,9 +50,9 @@ class SwitchAdapter(Adapter):
 
 
 def _lamp(**overrides) -> ActionConfig:
-    return ActionConfig(**{"id": "desk_lamp", "label": "Desk lamp", "adapter": "home",
+    return ActionConfig(**{"id": "desk_lamp", "label": "Desk lamp",
                            "service": "light.toggle", "target": "light.desk",
-                           "state_template": "{{ adapters.home.entities['light.desk'].state }}",
+                           "state_template": "{{ states['light.desk'].state }}",
                            **overrides})
 
 
@@ -108,72 +108,83 @@ def test_invalid_actions_are_rejected(overrides):
 
 
 def test_one_bad_entry_does_not_cost_the_rest(actions_path):
-    actions_path.write_text("actions:\n  - id: BAD\n    label: x\n    adapter: home\n"
-                            "  - id: ok\n    label: Fine\n    adapter: home\n")
+    actions_path.write_text("actions:\n  - id: BAD\n    label: x\n"
+                            "  - id: ok\n    label: Fine\n")
     assert [a.id for a in load_actions(str(actions_path))] == ["ok"]
+
+
+def test_an_old_adapter_field_is_ignored_and_dropped_on_the_next_save(actions_path):
+    """Actions named the adapter that ran them until 2026-09-29."""
+    actions_path.write_text("actions:\n  - id: lamp\n    label: Lamp\n    adapter: home_assistant\n"
+                            "    service: light.toggle\n")
+    [lamp] = load_actions(str(actions_path))
+    save_action(str(actions_path), lamp, replace_id="lamp")
+    assert "adapter" not in actions_path.read_text()
 
 
 # --- the runner ------------------------------------------------------------
 
-def _runner(actions_path, adapter):
-    agg = Aggregator(adapters=[adapter], client=None)
-    return ActionRunner(agg, str(actions_path)), agg
+def _runner(actions_path, ha):
+    return ActionRunner(HomeAssistantLink(ha, None), str(actions_path))
 
 
-async def test_runner_runs_the_action_and_asks_for_a_prompt_poll(actions_path):
+async def test_runner_runs_the_action(actions_path):
     save_action(str(actions_path), _lamp())
-    adapter = SwitchAdapter()
-    runner, agg = _runner(actions_path, adapter)
+    ha = SwitchHA()
+    runner = _runner(actions_path, ha)
     outcome = await runner.run("desk_lamp", source="test")
     assert outcome.ok and outcome.text == "Done"
-    assert adapter.runs == ["desk_lamp"]
-    await asyncio.sleep(1.1)  # request_poll(delay=1.0)
-    assert agg._wake_event.is_set()
+    assert ha.runs == ["desk_lamp"]
 
 
 async def test_runner_debounces_a_double_press(actions_path):
     save_action(str(actions_path), _lamp())
-    adapter = SwitchAdapter()
-    runner, _ = _runner(actions_path, adapter)
+    ha = SwitchHA()
+    runner = _runner(actions_path, ha)
     assert (await runner.run("desk_lamp", source="test")).ok
     second = await runner.run("desk_lamp", source="test")
     assert not second.ok and second.text == "Too soon"
-    assert adapter.runs == ["desk_lamp"]
+    assert ha.runs == ["desk_lamp"]
 
 
 async def test_runner_only_runs_actions_in_the_file(actions_path):
-    runner, _ = _runner(actions_path, SwitchAdapter())
+    runner = _runner(actions_path, SwitchHA())
     assert (await runner.run("anything", source="test")).text == "Unknown action"
 
 
-async def test_runner_reports_a_missing_adapter_or_unsupported_kind(actions_path):
-    save_action(str(actions_path), _lamp(adapter="gone"))
-    save_action(str(actions_path), _lamp(id="event", kind="event"))
-    runner, _ = _runner(actions_path, SwitchAdapter())
-    assert (await runner.run("desk_lamp", source="test")).text == "No adapter"
-    assert (await runner.run("event", source="test")).text == "Not supported"
+async def test_runner_says_when_home_assistant_isnt_set_up(actions_path):
+    save_action(str(actions_path), _lamp())
+    runner = _runner(actions_path, None)
+    assert (await runner.run("desk_lamp", source="test")).text == "No HA"
+
+
+async def test_runner_uses_a_connection_saved_since_it_started(actions_path):
+    save_action(str(actions_path), _lamp())
+    link = HomeAssistantLink(None, None)
+    runner = ActionRunner(link, str(actions_path))
+    ha = SwitchHA()
+    await link.replace(ha)
+    assert (await runner.run("desk_lamp", source="test")).ok and ha.runs == ["desk_lamp"]
 
 
 async def test_runner_reports_a_failure_without_raising(actions_path):
     save_action(str(actions_path), _lamp())
-    runner, _ = _runner(actions_path, SwitchAdapter(fail=True))
+    runner = _runner(actions_path, SwitchHA(fail=True))
     outcome = await runner.run("desk_lamp", source="test")
     assert not outcome.ok and outcome.text == "Failed"
 
 
 # --- the API ---------------------------------------------------------------
 
-def _client(actions_path, adapter=None):
-    adapter = adapter or SwitchAdapter()
-    agg = Aggregator(adapters=[adapter], client=None)
-    agg.latest_results = {"home": AdapterResult(
-        name="home", status="ok", context={"entities": {"light.desk": {"state": "on"}}})}
+def _client(actions_path, ha=None):
+    ha = ha if ha is not None else SwitchHA(on=True)
+    link = HomeAssistantLink(ha or None, None)
     test_app = FastAPI()
     bypass_auth(test_app)
     test_app.include_router(api_router)
-    test_app.state.aggregator = agg
-    test_app.state.action_runner = ActionRunner(agg, str(actions_path))
-    return TestClient(test_app), adapter
+    test_app.state.home_assistant = link
+    test_app.state.action_runner = ActionRunner(link, str(actions_path))
+    return TestClient(test_app), ha
 
 
 def test_api_create_list_update_delete(actions_path):
@@ -184,7 +195,8 @@ def test_api_create_list_update_delete(actions_path):
     data = client.get("/api/actions").json()
     assert data["actions"][0]["id"] == "desk_lamp"
     assert data["actions"][0]["resolved_state"] == "on"
-    assert data["adapters"] == [{"name": "home", "type": "switch", "kinds": ["service"]}]
+    assert data["home_assistant"] == {"set_up": True, "problem": None}
+    assert set(data["context"]) == {"device"}  # never every entity: viewers can read this
 
     assert client.put("/api/actions/desk_lamp", json={**body, "label": "Lamp"}).status_code == 200
     assert client.get("/api/actions").json()["actions"][0]["label"] == "Lamp"
@@ -202,40 +214,63 @@ def test_api_rejects_an_invalid_action_with_a_readable_message(actions_path):
 
 
 def test_api_run_goes_through_the_runner(actions_path):
-    client, adapter = _client(actions_path)
+    client, ha = _client(actions_path)
     client.post("/api/actions", json=_lamp().model_dump())
     assert client.post("/api/actions/desk_lamp/run").json() == {"ok": True, "text": "Done"}
-    assert adapter.runs == ["desk_lamp"]
+    assert ha.runs == ["desk_lamp"]
 
 
 def test_api_preview_state(actions_path):
     client, _ = _client(actions_path)
     resp = client.post("/api/preview-action-state",
-                       json={"state_template": "{{ adapters.home.entities['light.desk'].state|upper }}"})
-    assert resp.json() == {"rendered": "ON", "state": "ON", "error": None}
+                       json={"state_template": "{{ states['light.desk'].state|upper }}"})
+    assert resp.json() == {"rendered": "ON", "state": "ON", "error": None, "problem": None}
+
+
+def test_api_preview_state_can_use_the_device_readings(actions_path, monkeypatch):
+    from app.device import DeviceState, SensorReading
+    fresh = DeviceState()
+    fresh.sensors = SensorReading(temperature_c=19.0)
+    monkeypatch.setattr("app.api.actions.device_state", fresh)
+    client, _ = _client(actions_path)
+    resp = client.post("/api/preview-action-state", json={"state_template": "{{ device.temperature_c }} C"})
+    assert resp.json()["state"] == "19.0 C"
+
+
+class UnreachableHA(SwitchHA):
+    async def states(self, client):
+        raise RuntimeError("connect failed to 192.0.2.9")
+
+
+def test_api_list_says_once_why_states_are_blank(actions_path):
+    client, _ = _client(actions_path, UnreachableHA())
+    client.post("/api/actions", json=_lamp().model_dump())
+    data = client.get("/api/actions").json()
+    assert data["home_assistant"]["problem"].startswith("Home Assistant can’t be reached")
+    assert "192.0.2.9" not in str(data)  # the raw error names hosts; viewers can read this
+    assert (data["actions"][0]["resolved_state"], data["actions"][0]["state_error"]) == (None, None)
+
+
+def test_api_list_without_home_assistant(actions_path):
+    client, _ = _client(actions_path, False)
+    assert client.get("/api/actions").json()["home_assistant"] == {
+        "set_up": False, "problem": "Home Assistant isn’t set up."}
 
 
 # --- verify: did it really happen? ---------------------------------------------
 
-class GarageAdapter(Adapter):
+class GarageHA:
     """A Home Assistant stand-in with two garage doors that close a couple
     of reads after being told to — or never, when `jammed`."""
 
-    type_name = "garage"
-    action_kinds = ("service",)
-
     def __init__(self, doors: dict[str, str | None] | None = None, jammed: bool = False,
                  reads_to_close: int = 2) -> None:
-        super().__init__("home")
         self.doors = doors if doors is not None else {"cover.left": "open", "cover.right": "closed"}
         self.jammed = jammed
         self.reads_to_close = reads_to_close
         self.runs: list[str] = []
         self.reads = 0
         self.fail_reads = 0
-
-    async def fetch(self, client):
-        return AdapterResult(name=self.name, status="ok")
 
     async def run_action(self, client, action):
         self.runs.append(action.id)
@@ -255,7 +290,7 @@ class GarageAdapter(Adapter):
 
 
 def _garage(**verify) -> ActionConfig:
-    return ActionConfig(id="close_garage", label="Close garage", adapter="home",
+    return ActionConfig(id="close_garage", label="Close garage",
                         service="cover.close_cover", target="cover.left, cover.right", confirm=True,
                         verify={"entities": ["cover.left", "cover.right"], "state": "closed",
                                 "timeout": 5, **verify})
@@ -268,56 +303,56 @@ def fast_verify(monkeypatch):
 
 async def test_verify_waits_for_every_entity_to_reach_the_state(actions_path):
     save_action(str(actions_path), _garage())
-    adapter = GarageAdapter()
-    runner, _ = _runner(actions_path, adapter)
+    ha = GarageHA()
+    runner = _runner(actions_path, ha)
     outcome = await runner.run("close_garage", source="test")
     assert (outcome.ok, outcome.text) == (True, "Done")
-    assert adapter.runs == ["close_garage"] and adapter.doors["cover.left"] == "closed"
+    assert ha.runs == ["close_garage"] and ha.doors["cover.left"] == "closed"
 
 
 async def test_verify_already_passing_sends_nothing(actions_path):
     save_action(str(actions_path), _garage())
-    adapter = GarageAdapter(doors={"cover.left": "closed", "cover.right": "closed"})
-    runner, _ = _runner(actions_path, adapter)
+    ha = GarageHA(doors={"cover.left": "closed", "cover.right": "closed"})
+    runner = _runner(actions_path, ha)
     outcome = await runner.run("close_garage", source="test")
     assert (outcome.ok, outcome.text) == (True, "Already ok")
-    assert adapter.runs == []
+    assert ha.runs == []
 
 
 async def test_verify_times_out_when_it_never_happens(actions_path, monkeypatch):
     save_action(str(actions_path), _garage(timeout=1))
-    adapter = GarageAdapter(jammed=True)
-    runner, _ = _runner(actions_path, adapter)
+    ha = GarageHA(jammed=True)
+    runner = _runner(actions_path, ha)
     outcome = await runner.run("close_garage", source="test")
     assert (outcome.ok, outcome.text) == (False, "Timed out")
-    assert adapter.runs == ["close_garage"]
+    assert ha.runs == ["close_garage"]
 
 
 async def test_verify_fails_straight_away_on_an_unavailable_entity(actions_path):
     save_action(str(actions_path), _garage(timeout=60))
-    adapter = GarageAdapter(doors={"cover.left": "open", "cover.right": "unavailable"}, jammed=True)
-    runner, _ = _runner(actions_path, adapter)
+    ha = GarageHA(doors={"cover.left": "open", "cover.right": "unavailable"}, jammed=True)
+    runner = _runner(actions_path, ha)
     outcome = await asyncio.wait_for(runner.run("close_garage", source="test"), timeout=5)
     assert (outcome.ok, outcome.text) == (False, "Unavailable")
 
 
 async def test_verify_rides_out_a_failed_read(actions_path):
     save_action(str(actions_path), _garage())
-    adapter = GarageAdapter()
-    adapter.fail_reads = 2  # the pre-check and the first poll both fail
-    runner, _ = _runner(actions_path, adapter)
+    ha = GarageHA()
+    ha.fail_reads = 2  # the pre-check and the first poll both fail
+    runner = _runner(actions_path, ha)
     outcome = await runner.run("close_garage", source="test")
     assert (outcome.ok, outcome.text) == (True, "Done")
-    assert adapter.runs == ["close_garage"]
+    assert ha.runs == ["close_garage"]
 
 
-async def test_verify_on_an_adapter_that_cannot_check_times_out(actions_path):
+async def test_verify_that_can_never_read_its_entities_times_out(actions_path):
     save_action(str(actions_path), _lamp(verify={"entities": ["light.desk"], "state": "on", "timeout": 1}))
-    adapter = SwitchAdapter()
-    runner, _ = _runner(actions_path, adapter)
+    ha = SwitchHA()
+    runner = _runner(actions_path, ha)
     outcome = await runner.run("desk_lamp", source="test")
     assert (outcome.ok, outcome.text) == (False, "Timed out")
-    assert adapter.runs == ["desk_lamp"]
+    assert ha.runs == ["desk_lamp"]
 
 
 @pytest.mark.parametrize("verify", [

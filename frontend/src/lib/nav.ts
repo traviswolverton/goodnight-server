@@ -1,8 +1,8 @@
-import { BedDouble, Cable, Grid2x2, LayoutDashboard, Network, Radio, Settings2, ToggleRight, Users, type LucideIcon } from 'lucide-react'
+import { BedDouble, Grid2x2, LayoutDashboard, Network, Radio, Settings2, ToggleRight, Users, type LucideIcon } from 'lucide-react'
 import type { Role } from '@/lib/auth'
 
 export interface NavItem {
-  to: '/' | '/device' | '/buttons' | '/actions' | '/adapters' | '/connections' | '/settings' | '/users' | '/mqtt'
+  to: '/' | '/device' | '/buttons' | '/actions' | '/connections' | '/settings' | '/users' | '/mqtt'
   label: string
   icon: LucideIcon
   adminOnly?: boolean
@@ -13,7 +13,6 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/device', label: 'Device', icon: BedDouble },
   { to: '/buttons', label: 'Buttons', icon: Grid2x2 },
   { to: '/actions', label: 'Actions', icon: ToggleRight },
-  { to: '/adapters', label: 'Adapters', icon: Cable, adminOnly: true },
   { to: '/connections', label: 'Connections', icon: Network, adminOnly: true },
   { to: '/settings', label: 'Settings', icon: Settings2, adminOnly: true },
   { to: '/users', label: 'Users', icon: Users, adminOnly: true },

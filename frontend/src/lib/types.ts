@@ -3,64 +3,15 @@
 export type Status = 'ok' | 'warn' | 'down'
 export type Context = Record<string, unknown>
 
-export interface AdapterField {
-  name: string
-  label: string
-  secret?: boolean
-  required?: boolean
-  type?: 'checkbox' | 'text'
-  default?: boolean
-  placeholder?: string
-  /** Offer a picker filled from the adapter's catalog (a comma-separated list). */
-  suggest?: 'entities'
-}
-export interface AdapterType {
-  type: string
-  description: string
-  required_fields: AdapterField[]
-}
-/** A stored field value: text, a checkbox, or (for secrets) only whether one is set. */
-export type AdapterFieldValue = string | boolean | { secret: true; set: boolean }
-export interface AdapterEntry {
-  name: string
-  type: string
-  enabled: boolean
-  known_type: boolean
-  state: 'running' | 'pending' | 'disabled'
-  fields: Record<string, AdapterFieldValue>
-  /** Live health from the last poll; null unless it's running. */
-  health: { status: Status | 'unknown'; detail: string | null; reason: string | null } | null
-}
-export interface AdaptersResponse {
-  adapters: AdapterEntry[]
-  restart_pending: boolean
-}
-export interface TestAdapterResult {
-  ok: boolean
-  error?: string
-  status?: string
-  detail?: string | null
-  value?: number | string | null
-  unit?: string | null
-  summary?: Record<string, string | number | boolean | null>
-}
+/** How Home Assistant is doing, as the Home page shows it. */
+export type HomeAssistantStatus = 'connected' | 'unreachable' | 'not_set_up'
 
-export interface OverviewAdapter {
-  name: string
-  type: string
-  status: Status | 'unknown'
-  detail: string | null
-  /** Why it's warn/down, in a sentence, when the adapter says (hover the pill). */
-  reason?: string | null
-}
 export interface Overview {
-  last_poll_ts: number | null
-  poll_interval_seconds: number
   version: string
   uptime_seconds: number
+  home_assistant: HomeAssistantStatus
   mqtt_connected: boolean
   database_available: boolean
-  adapters: OverviewAdapter[]
 }
 
 export interface AuditEntry {
@@ -86,13 +37,13 @@ export interface MqttReference {
   topics: MqttTopic[]
 }
 
-/** What an adapter offers the pickers (Home Assistant: its entities and services). */
+/** What Home Assistant offers the Actions editor's pickers: its entities and services. */
 export interface CatalogEntity {
   id: string
   name: string
   state: string
 }
-export interface AdapterCatalog {
+export interface HomeAssistantCatalog {
   entities?: CatalogEntity[]
   services?: string[]
 }
@@ -108,7 +59,6 @@ export interface VerifyConfig {
 export interface ActionConfig {
   id: string
   label: string
-  adapter: string
   kind: ActionKind
   service: string | null
   target: string | null
@@ -123,8 +73,12 @@ export interface ActionInfo extends ActionConfig {
 }
 export interface ActionsResponse {
   actions: ActionInfo[]
-  /** Running adapters that can perform actions. */
-  adapters: { name: string; type: string; kinds: ActionKind[] }[]
+  home_assistant: {
+    set_up: boolean
+    /** Why states are blank right now (not set up, or unreachable), else null. */
+    problem: string | null
+  }
+  /** What the variables panel offers: the device's own readings. */
   context: Context
   limits: { label_max: number; state_max: number }
 }
@@ -136,6 +90,7 @@ export interface PreviewActionStateResponse {
   rendered: string | null
   state: string | null
   error: string | null
+  problem: string | null
 }
 
 /** The bedside device (app/device.py). */
@@ -235,12 +190,26 @@ export interface ConnectionsResponse {
     /** Its last GET /device/config since the app started (unix seconds). */
     last_seen: { ts: number; ip: string | null } | null
   }
+  /** The Home Assistant that Actions run through. The token is never sent. */
+  home_assistant: {
+    url: string | null
+    verify_ssl: boolean
+    token_set: boolean
+    status: HomeAssistantStatus
+  }
   /** False until SECRETS_MASTER_KEY is set: there'd be nowhere to keep a password. */
   can_save: boolean
 }
 export interface MqttTestResult {
   ok: boolean
   error: string | null
+}
+/** POST /api/connections/home-assistant/test. */
+export interface HomeAssistantTestResult {
+  ok: boolean
+  error: string | null
+  version?: string | null
+  location_name?: string | null
 }
 export type DatabaseSaveMode = 'use' | 'copy' | 'fresh'
 /** POST /api/connections/database/test (app.connections.DatabaseReport). */

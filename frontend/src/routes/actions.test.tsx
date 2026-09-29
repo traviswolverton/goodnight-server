@@ -11,8 +11,8 @@ vi.mock('sonner', () => ({ toast }))
 
 const data: ActionsResponse = {
   actions: [],
-  adapters: [{ name: 'home', type: 'home_assistant', kinds: ['service', 'script', 'event'] }],
-  context: { adapters: {} },
+  home_assistant: { set_up: true, problem: null },
+  context: { device: { temperature_c: 21.5 } },
   limits: { label_max: 23, state_max: 11 },
 }
 
@@ -64,13 +64,12 @@ describe('ActionEditor', () => {
     expect(lastBody('/api/actions')).toEqual({
       id: 'desk_lamp',
       label: 'Desk lamp',
-      adapter: 'home',
       kind: 'service',
       service: 'light.toggle',
       target: 'light.desk',
       data: { brightness_pct: 40 },
       confirm: false,
-      state_template: "{{ adapters.home.entities['light.desk'].state }}",
+      state_template: "{{ states['light.desk'].state }}",
       verify: null,
     })
   })

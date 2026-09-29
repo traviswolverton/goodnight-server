@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 #: Only these request-body keys are copied into the audit trail — never
-#: anything that could carry a secret (e.g. an adapter's `fields`).
+#: anything that could carry a secret (e.g. a connection form's `fields`).
 AUDIT_BODY_KEYS = ("name", "type", "enabled", "sound")
 
 

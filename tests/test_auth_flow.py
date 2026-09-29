@@ -18,6 +18,7 @@ from app.auth import service
 from app.auth.bootstrap import bootstrap_admin
 from app.auth.models import AuditLog, UserSession, utcnow
 from app.auth.ratelimit import LoginRateLimiter
+from app.home_assistant import HomeAssistantLink
 from app.db import Database
 from app.routes import router as routes_router
 from app.security_headers import SecurityHeadersMiddleware
@@ -44,7 +45,7 @@ async def env(tmp_path, monkeypatch):
         app.include_router(r)
     app.add_middleware(SecurityHeadersMiddleware)
     app.state.database = db
-    app.state.aggregator = SimpleNamespace(latest_results={}, adapters=[], last_poll_ts=None)
+    app.state.home_assistant = HomeAssistantLink(None, None)
     yield SimpleNamespace(app=app, db=db)
     if pg_url:
         db.available = True
@@ -155,7 +156,8 @@ async def test_viewer_can_read_but_not_write_or_see_admin_areas(seeded):
         for method, path, body in (("POST", "/api/actions", {"id": "x"}),
                                    ("PUT", "/api/device/buttons", {"buttons": {}}),
                                    ("POST", "/api/restart", None),
-                                   ("GET", "/api/adapters", None),
+                                   ("GET", "/api/connections", None),
+                                   ("GET", "/api/home-assistant/catalog", None),
                                    ("GET", "/api/users", None),
                                    ("GET", "/api/audit-log", None)):
             r = await c.request(method, path, json=body, headers=h)
@@ -165,12 +167,12 @@ async def test_viewer_can_read_but_not_write_or_see_admin_areas(seeded):
 async def test_admin_writes_are_audited_without_leaking_secrets(seeded):
     async with new_client(seeded) as c:
         h = {"X-CSRF-Token": await login(c)}
-        r = await c.post("/api/add-adapter", headers=h,
-                         json={"type": "nope", "name": "ag", "fields": {"password": "hunter2-secret"}})
-        assert r.status_code == 400                                          # unknown type, but attempted
+        r = await c.put("/api/connections/home-assistant", headers=h,
+                        json={"fields": {"url": "nope", "token": "hunter2-secret"}})
+        assert r.status_code == 400                                          # bad URL, but attempted
         entries = (await c.get("/api/audit-log")).json()["entries"]
-    hit = next(e for e in entries if e["action"] == "api.add_adapter_endpoint")
-    assert hit["username"] == "alice" and hit["detail"] == {"type": "nope", "name": "ag"}
+    hit = next(e for e in entries if e["action"] == "api.save_home_assistant_connection")
+    assert hit["username"] == "alice" and hit["detail"] is None
     assert "hunter2-secret" not in str(entries)
 
 

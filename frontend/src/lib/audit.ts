@@ -24,6 +24,8 @@ const LABELS: Record<string, string> = {
   'api.remove_adapter_endpoint': 'Removed an adapter',
   'api.test_adapter': 'Tested an adapter connection',
   'api.restart_app': 'Restarted the app',
+  'api.test_home_assistant': 'Tested a Home Assistant connection',
+  'api.save_home_assistant_connection': 'Changed the Home Assistant connection',
   'api.generate_lines': 'Asked AI for card text',
   'api.generate_status': 'Asked AI for a status template',
   'api.generate_pixel_color': 'Asked AI for a pixel colour',

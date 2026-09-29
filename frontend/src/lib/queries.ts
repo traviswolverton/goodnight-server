@@ -2,8 +2,6 @@ import { queryOptions } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type {
   ActionsResponse,
-  AdaptersResponse,
-  AdapterType,
   AuditEntry,
   ConnectionsResponse,
   DeviceResponse,
@@ -23,18 +21,6 @@ export const deviceQuery = queryOptions({
   queryKey: ['device'],
   queryFn: () => api<DeviceResponse>('/api/device'),
   refetchInterval: 5_000, // live readings and presses
-})
-
-export const adaptersQuery = queryOptions({
-  queryKey: ['adapters'],
-  queryFn: () => api<AdaptersResponse>('/api/adapters'),
-  refetchInterval: 15_000, // live health
-})
-
-export const adapterTypesQuery = queryOptions({
-  queryKey: ['adapter-types'],
-  queryFn: () => api<{ types: AdapterType[] }>('/api/adapter-types').then((r) => r.types),
-  staleTime: Infinity,
 })
 
 export const overviewQuery = queryOptions({

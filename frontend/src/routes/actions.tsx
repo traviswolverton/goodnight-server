@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Braces, ListChecks, Loader2, Pencil, Play, Plus, Trash2 } from 'lucide-react'
+import { Braces, ListChecks, Loader2, Pencil, Play, Plus, Trash2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Diag } from '@/components/diag'
@@ -9,6 +9,7 @@ import { EntityPicker } from '@/components/entity-picker'
 import { PageHeader } from '@/components/page-header'
 import { EmptyState, LoadError, LoadingBlocks } from '@/components/query-state'
 import { ReadOnlyNote } from '@/components/read-only-note'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -24,13 +25,17 @@ import { errorMessage, toastError } from '@/lib/mutations'
 import { describeAction, slugify } from '@/lib/actions'
 import { actionsQuery } from '@/lib/queries'
 import { insertText } from '@/lib/vars'
-import type { ActionConfig, ActionInfo, ActionKind, ActionOutcome, ActionsResponse, AdapterCatalog, PreviewActionStateResponse } from '@/lib/types'
+import type { ActionConfig, ActionInfo, ActionKind, ActionOutcome, ActionsResponse, HomeAssistantCatalog, PreviewActionStateResponse } from '@/lib/types'
 
 const KIND_LABELS: Record<ActionKind, string> = {
   service: 'Call a service',
   script: 'Run a script',
   event: 'Fire an event',
 }
+const KINDS = Object.keys(KIND_LABELS) as ActionKind[]
+
+/** Home Assistant's entities and services, for the editor's pickers. */
+const loadCatalog = () => api<HomeAssistantCatalog>('/api/home-assistant/catalog')
 
 export function ActionsPage() {
   usePageTitle('Actions')
@@ -64,10 +69,25 @@ export function ActionsPage() {
         <LoadError error={error} retry={() => void refetch()} />
       ) : (
         <div className="grid gap-4">
-          {data.adapters.length === 0 && (
-            <EmptyState title="Nothing can run actions yet">
-              Actions are run by a Home Assistant adapter. {canEdit ? <Link to="/adapters" className="underline">Add one on the Adapters page</Link> : 'An administrator can add one on the Adapters page'}, then restart.
+          {!data.home_assistant.set_up ? (
+            <EmptyState title="Home Assistant isn’t set up yet">
+              Actions run through Home Assistant.{' '}
+              {canEdit ? (
+                <Link to="/connections" className="underline">
+                  Connect it on the Connections page
+                </Link>
+              ) : (
+                'An administrator can connect it on the Connections page'
+              )}
+              .
             </EmptyState>
+          ) : (
+            data.home_assistant.problem && (
+              <Alert>
+                <TriangleAlert aria-hidden="true" />
+                <AlertDescription>{data.home_assistant.problem}</AlertDescription>
+              </Alert>
+            )
           )}
           <Card>
             <CardHeader>
@@ -76,7 +96,7 @@ export function ActionsPage() {
                 Bind them to buttons on the <Link to="/buttons" className="underline">Buttons page</Link>. The state beside each
                 label is live.
               </CardDescription>
-              {canEdit && data.adapters.length > 0 && (
+              {canEdit && data.home_assistant.set_up && (
                 <CardAction>
                   <Button size="sm" onClick={() => setEditing('new')}>
                     <Plus aria-hidden="true" /> Add action
@@ -169,7 +189,7 @@ function ActionRow({
           {action.verify && <span className="text-xs text-muted-foreground">checks for {action.verify.state}</span>}
         </span>
         <span className="truncate font-mono text-xs text-muted-foreground">
-          {action.adapter}: {describeAction(action)}
+          {describeAction(action)}
         </span>
         {action.state_error && <span className="text-xs text-destructive">State template error: {action.state_error}</span>}
       </div>
@@ -215,7 +235,6 @@ export function ActionEditor({
   const [label, setLabel] = useState(original?.label ?? '')
   const [id, setId] = useState(original?.id ?? '')
   const [idTouched, setIdTouched] = useState(original !== null)
-  const [adapter, setAdapter] = useState(original?.adapter ?? data.adapters[0]?.name ?? '')
   const [kind, setKind] = useState<ActionKind>(original?.kind ?? 'service')
   const [service, setService] = useState(original?.service ?? '')
   const [target, setTarget] = useState(original?.target ?? '')
@@ -228,6 +247,7 @@ export function ActionEditor({
   const [verifyTimeout, setVerifyTimeout] = useState(String(original?.verify?.timeout ?? 30))
   const [picking, setPicking] = useState(false)
   const [pickingVerify, setPickingVerify] = useState(false)
+  const [pickingState, setPickingState] = useState(false)
   const [statePreview, setStatePreview] = useState<PreviewActionStateResponse | null>(null)
   const [varsOpen, setVarsOpen] = useState(false)
   const stateInput = useRef<HTMLInputElement | null>(null)
@@ -243,15 +263,7 @@ export function ActionEditor({
     })
   }
 
-  const adapterInfo = data.adapters.find((a) => a.name === adapter)
-  const kinds = adapterInfo?.kinds ?? ['service', 'script', 'event']
-  const catalog = useQuery({
-    queryKey: ['catalog', 'running', adapter],
-    queryFn: () => api<AdapterCatalog>(`/api/adapters/${encodeURIComponent(adapter)}/catalog`),
-    enabled: !!adapter,
-    staleTime: 60_000,
-    retry: false,
-  })
+  const catalog = useQuery({ queryKey: ['catalog', 'home-assistant'], queryFn: loadCatalog, staleTime: 60_000, retry: false })
   const targetDomain = kind === 'script' ? 'script' : service.split('.')[0]
 
   const save = useMutation({
@@ -268,7 +280,6 @@ export function ActionEditor({
       const body: ActionConfig = {
         id: id.trim(),
         label: label.trim(),
-        adapter,
         kind,
         service: kind === 'service' ? service.trim() || null : null,
         target: kind === 'event' ? null : target.trim() || null,
@@ -293,19 +304,19 @@ export function ActionEditor({
   const preview = useMutation({
     mutationFn: () => api<PreviewActionStateResponse>('/api/preview-action-state', { method: 'POST', body: { state_template: stateTemplate } }),
     onSuccess: setStatePreview,
-    onError: (e) => setStatePreview({ rendered: null, state: null, error: errorMessage(e) }),
+    onError: (e) => setStatePreview({ rendered: null, state: null, error: errorMessage(e), problem: null }),
   })
 
   function fillTargetState() {
-    if (!target || !adapter) return
-    setStateTemplate(`{{ adapters.${adapter}.entities['${target}'].state }}`)
+    const first = splitEntities(target)[0]
+    if (first) setStateTemplate(`{{ states['${first}'].state }}`)
   }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>{original ? `Edit “${original.label}”` : 'New action'}</CardTitle>
-        <CardDescription>Saved to config/actions.yaml. Takes effect on the next poll, no restart.</CardDescription>
+        <CardDescription>Saved to config/actions.yaml. Takes effect straight away, no restart.</CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -353,29 +364,13 @@ export function ActionEditor({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor={`${prefix}-adapter`}>Adapter</Label>
-              <Select value={adapter} onValueChange={setAdapter}>
-                <SelectTrigger id={`${prefix}-adapter`} className="w-full">
-                  <SelectValue placeholder="Choose an adapter" />
-                </SelectTrigger>
-                <SelectContent>
-                  {data.adapters.map((a) => (
-                    <SelectItem key={a.name} value={a.name}>
-                      {a.name} <span className="text-xs text-muted-foreground">({a.type})</span>
-                    </SelectItem>
-                  ))}
-                  {original && !adapterInfo && <SelectItem value={original.adapter}>{original.adapter} (not running)</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
               <Label htmlFor={`${prefix}-kind`}>What it does</Label>
               <Select value={kind} onValueChange={(v) => setKind(v as ActionKind)}>
                 <SelectTrigger id={`${prefix}-kind`} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {kinds.map((k) => (
+                  {KINDS.map((k) => (
                     <SelectItem key={k} value={k}>
                       {KIND_LABELS[k]}
                     </SelectItem>
@@ -418,7 +413,7 @@ export function ActionEditor({
                   placeholder={kind === 'script' ? 'script.movie_mode' : 'light.desk'}
                   onChange={(e) => setTarget(e.target.value)}
                 />
-                <Button type="button" variant="outline" onClick={() => setPicking(true)} disabled={!adapter}>
+                <Button type="button" variant="outline" onClick={() => setPicking(true)}>
                   <ListChecks aria-hidden="true" /> Choose…
                 </Button>
               </div>
@@ -428,8 +423,8 @@ export function ActionEditor({
                   onOpenChange={(open) => !open && setPicking(false)}
                   title={kind === 'script' ? 'Choose a script' : 'Choose the target entity'}
                   description={targetDomain ? `Filtered to ${targetDomain}.* to start with — clear the filter to see everything.` : 'Every entity Home Assistant has.'}
-                  queryKey={['running', adapter]}
-                  load={() => api<AdapterCatalog>(`/api/adapters/${encodeURIComponent(adapter)}/catalog`)}
+                  queryKey={['home-assistant']}
+                  load={loadCatalog}
                   onPick={([picked]) => setTarget(picked)}
                   initialFilter={targetDomain ? `${targetDomain}.` : ''}
                 />
@@ -487,7 +482,7 @@ export function ActionEditor({
                       placeholder="cover.garage_left, cover.garage_right"
                       onChange={(e) => setVerifyEntities(e.target.value)}
                     />
-                    <Button type="button" variant="outline" onClick={() => setPickingVerify(true)} disabled={!adapter} aria-label="Choose entities to check">
+                    <Button type="button" variant="outline" onClick={() => setPickingVerify(true)} aria-label="Choose entities to check">
                       <ListChecks aria-hidden="true" />
                     </Button>
                   </div>
@@ -537,8 +532,8 @@ export function ActionEditor({
                 onOpenChange={(open) => !open && setPickingVerify(false)}
                 title="Choose the entities to check"
                 description="Every one must reach the state for the action to count as done."
-                queryKey={['running', adapter]}
-                load={() => api<AdapterCatalog>(`/api/adapters/${encodeURIComponent(adapter)}/catalog`)}
+                queryKey={['home-assistant']}
+                load={loadCatalog}
                 onPick={(ids) => setVerifyEntities(ids.join(', '))}
                 initialFilter={targetDomain ? `${targetDomain}.` : ''}
               />
@@ -551,7 +546,8 @@ export function ActionEditor({
                 State beside the label (optional)
               </h3>
               <p className="text-sm text-muted-foreground">
-                Jinja2, cut to {data.limits.state_max} characters. E.g. whether the light is on right now.
+                Jinja2, cut to {data.limits.state_max} characters. <code>{"states['light.desk'].state"}</code> is an entity&rsquo;s
+                state; <code>device.temperature_c</code> is the device&rsquo;s own reading.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -563,7 +559,7 @@ export function ActionEditor({
                 id={`${prefix}-state`}
                 className="min-w-0 flex-1 font-mono text-sm"
                 value={stateTemplate}
-                placeholder="{{ adapters.home_assistant.entities['light.desk'].state }}"
+                placeholder="{{ states['light.desk'].state }}"
                 onChange={(e) => setStateTemplate(e.target.value)}
               />
               {target && kind !== 'event' && (
@@ -571,14 +567,29 @@ export function ActionEditor({
                   Use the target&rsquo;s state
                 </Button>
               )}
-              <Button type="button" variant="ghost" size="sm" aria-label="Insert a variable in the state" onClick={() => setVarsOpen(true)}>
-                <Braces aria-hidden="true" /> Variables
+              <Button type="button" variant="ghost" size="sm" aria-label="Insert an entity’s state" onClick={() => setPickingState(true)}>
+                <ListChecks aria-hidden="true" /> Entity…
+              </Button>
+              <Button type="button" variant="ghost" size="sm" aria-label="Insert a device reading in the state" onClick={() => setVarsOpen(true)}>
+                <Braces aria-hidden="true" /> Device
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => preview.mutate()} disabled={!stateTemplate.trim() || preview.isPending}>
                 Preview
               </Button>
             </div>
+            {pickingState && (
+              <EntityPicker
+                open
+                onOpenChange={(open) => !open && setPickingState(false)}
+                title="Insert an entity’s state"
+                description="Inserts {{ states['…'].state }} where your cursor was."
+                queryKey={['home-assistant']}
+                load={loadCatalog}
+                onPick={([picked]) => insertVariable(`states['${picked}'].state`)}
+              />
+            )}
             <div aria-live="polite">
+              {statePreview?.problem && <p className="mb-1 text-xs text-muted-foreground">{statePreview.problem}</p>}
               {statePreview &&
                 (statePreview.error ? (
                   <Diag kind="error">{statePreview.error}</Diag>
@@ -594,7 +605,7 @@ export function ActionEditor({
           </section>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={save.isPending || !adapter}>
+            <Button type="submit" disabled={save.isPending}>
               {save.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Save
             </Button>
             <Button type="button" variant="ghost" onClick={onCancel}>

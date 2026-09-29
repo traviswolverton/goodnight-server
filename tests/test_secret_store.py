@@ -1,11 +1,10 @@
-"""Fernet-backed secret storage and its load_adapters() integration."""
+"""Fernet-backed secret storage (app/secret_store.py)."""
 from __future__ import annotations
 
 import stat
 
 import pytest
 
-from app.config import load_adapters
 from app.secret_store import (
     SecretError, decrypt_secret, encrypt_secret, generate_key, get_secret, set_secret,
 )
@@ -50,33 +49,3 @@ def test_set_and_get_secret(tmp_path):
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     with pytest.raises(SecretError):
         get_secret(path, "missing", KEY)
-
-
-def _adapters_yaml(tmp_path):
-    p = tmp_path / "adapters.yaml"
-    p.write_text("""\
-adapters:
-  - name: adguard_main
-    type: adguard
-    options:
-      base_url: http://dns.example.lan
-      username: admin
-      password: {secret: adguard_main_password}
-""")
-    return p
-
-
-def test_load_adapters_resolves_secret(tmp_path, monkeypatch):
-    monkeypatch.setattr("app.secret_store.settings.secrets_master_key", KEY)
-    secrets = tmp_path / "secrets.enc.yaml"
-    set_secret(secrets, "adguard_main_password", "s3cret")
-    adapters = load_adapters(str(_adapters_yaml(tmp_path)), str(secrets))
-    assert len(adapters) == 1
-    assert "s3cret" in vars(adapters[0]).values() or any(
-        "s3cret" in str(v) for v in vars(adapters[0]).values())
-
-
-def test_load_adapters_skips_entry_with_missing_secret(tmp_path, monkeypatch):
-    monkeypatch.setattr("app.secret_store.settings.secrets_master_key", KEY)
-    adapters = load_adapters(str(_adapters_yaml(tmp_path)), str(tmp_path / "none.yaml"))
-    assert adapters == []

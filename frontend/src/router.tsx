@@ -98,13 +98,6 @@ function requireAdmin({ context }: { context: { session: Session } }) {
   if (context.session.user.role !== 'admin') throw redirect({ to: '/' })
 }
 
-const adaptersRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: '/adapters',
-  beforeLoad: requireAdmin,
-  component: lazyRouteComponent(() => import('@/routes/adapters'), 'AdaptersPage'),
-})
-
 const connectionsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/connections',
@@ -129,13 +122,21 @@ const usersRoute = createRoute({
 const mqttRoute = createRoute({ getParentRoute: () => appRoute, path: '/mqtt', component: lazyRouteComponent(() => import('@/routes/mqtt'), 'MqttPage') })
 const profileRoute = createRoute({ getParentRoute: () => appRoute, path: '/profile', component: lazyRouteComponent(() => import('@/routes/profile'), 'ProfilePage') })
 
-/** Old addresses (the desk-era card editor and the server-rendered MQTT
- *  docs) still work as bookmarks: they land on the nearest page here. */
+/** Old addresses (the desk-era card editor, the server-rendered MQTT docs
+ *  and the Adapters page) still work as bookmarks: they land on the nearest
+ *  page here. */
 const oldEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/tools/lines-template',
   beforeLoad: () => {
     throw redirect({ to: '/' })
+  },
+})
+const oldAdaptersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/adapters',
+  beforeLoad: () => {
+    throw redirect({ to: '/connections' })
   },
 })
 const oldMqttDocsRoute = createRoute({
@@ -159,12 +160,12 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   oldEditorRoute,
   oldMqttDocsRoute,
+  oldAdaptersRoute,
   appRoute.addChildren([
     homeRoute,
     deviceRoute,
     buttonsRoute,
     actionsRoute,
-    adaptersRoute,
     connectionsRoute,
     settingsRoute,
     usersRoute,

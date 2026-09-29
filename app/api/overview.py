@@ -1,13 +1,12 @@
 """Read-only summaries for the Home page and the MQTT reference page. Open to
-any signed-in user, so nothing sensitive goes in here: adapter hosts,
-usernames and credentials stay behind the admin-only /api/adapters."""
+any signed-in user, so nothing sensitive goes in here: hosts, usernames and
+credentials stay behind the admin-only /api/connections."""
 from __future__ import annotations
 
 import time
 
 from fastapi import APIRouter, Request
 
-from app.api.deps import status_reason
 from app.settings import settings
 
 router = APIRouter()
@@ -18,35 +17,16 @@ STARTED_AT = time.time()
 
 @router.get("/overview")
 async def overview(request: Request) -> dict[str, object]:
-    """Health at a glance: per-adapter status, and whether polling, the
-    broker and the database are working."""
-    agg = request.app.state.aggregator
+    """Health at a glance: whether Home Assistant, the broker and the
+    database are working."""
     device_link = getattr(request.app.state, "device_link", None)
     database = getattr(request.app.state, "database", None)
-
-    adapters = []
-    for adapter in sorted(agg.adapters, key=lambda a: a.name.lower()):
-        result = agg.latest_results.get(adapter.name)
-        adapters.append({
-            "name": adapter.name,
-            "type": adapter.type_name,
-            "status": result.status if result else "unknown",
-            "detail": result.detail if result else None,
-            # Why it's warn/down, when the adapter spells it out (the Home
-            # page shows it on the status pill). Never the raw fetch
-            # error: that can name internal hosts, and this page is open
-            # to viewers — the app log has it.
-            "reason": status_reason(result),
-        })
-
     return {
-        "last_poll_ts": agg.last_poll_ts,
-        "poll_interval_seconds": settings.poll_interval_seconds,
         "version": settings.app_version,
         "uptime_seconds": int(time.time() - STARTED_AT),
+        "home_assistant": await request.app.state.home_assistant.status(),
         "mqtt_connected": bool(device_link and device_link.state.link_connected),
         "database_available": bool(database and database.available),
-        "adapters": adapters,
     }
 
 

@@ -1,11 +1,12 @@
-"""The Connections page: the MQTT broker / database saved from the UI
-(app/connections.py, app/api/connections.py)."""
+"""The Connections page: the MQTT broker / database / Home Assistant saved
+from the UI (app/connections.py, app/api/connections.py)."""
 from __future__ import annotations
 
 import asyncio
 import os
 from types import SimpleNamespace
 
+import httpx
 import pytest
 import yaml
 from fastapi import FastAPI
@@ -19,11 +20,14 @@ from app.connections import (
     DatabaseReport,
     MqttConnection,
     apply_saved_connections,
+    import_home_assistant_adapter,
     inspect_database,
+    load_home_assistant,
     save_database,
     save_mqtt,
 )
-from app.secret_store import generate_key
+from app.home_assistant import HomeAssistant, HomeAssistantLink
+from app.secret_store import generate_key, get_secret, set_secret
 from app.settings import settings
 from tests.auth_helpers import bypass_auth
 
@@ -153,6 +157,7 @@ def client(paths, monkeypatch):
     app.state.connection_sources = {"mqtt": "env", "database": "app"}
     app.state.device_link = SimpleNamespace(state=SimpleNamespace(link_connected=True))
     app.state.database = SimpleNamespace(available=True)
+    app.state.home_assistant = HomeAssistantLink(None, None)
     c = TestClient(bypass_auth(app))
     c.restarts = restarts
     return c
@@ -416,3 +421,104 @@ def test_display_api_rejects_values_the_display_cannot_hold(client):
     assert resp.status_code == 400 and "95" in resp.json()["detail"]
     resp = client.post("/api/connections/display/test", json={"fields": {"host": "b.lan", "username": "", "password": ""}})
     assert resp.status_code == 400
+
+
+# --- Home Assistant ------------------------------------------------------------------------------
+
+@pytest.fixture
+def ha_check(monkeypatch):
+    """HomeAssistant.check without a network: fails for a URL on .invalid."""
+    seen: list[tuple[str, str, bool]] = []
+
+    async def check(self, client):
+        seen.append((self.base_url, self.token, self.verify_ssl))
+        if ".invalid" in self.base_url:
+            raise httpx.ConnectError("Name or service not known")
+        if self.token == "bad-token":
+            raise httpx.HTTPStatusError("401", request=httpx.Request("GET", self.base_url),
+                                        response=httpx.Response(401))
+        return {"version": "2026.9.1", "location_name": "Home"}
+    monkeypatch.setattr(HomeAssistant, "check", check)
+    return seen
+
+
+def test_home_assistant_test_reports_what_it_found_or_why_not(client, ha_check):
+    ok = client.post("/api/connections/home-assistant/test",
+                     json={"fields": {"url": "http://ha.lan:8123/", "token": "tok-1234"}}).json()
+    assert ok == {"ok": True, "error": None, "version": "2026.9.1", "location_name": "Home"}
+    assert ha_check[-1] == ("http://ha.lan:8123", "tok-1234", True)
+    refused = client.post("/api/connections/home-assistant/test",
+                          json={"fields": {"url": "http://ha.lan:8123", "token": "bad-token"}}).json()
+    assert not refused["ok"] and "refused the token" in refused["error"]
+    unreachable = client.post("/api/connections/home-assistant/test",
+                              json={"fields": {"url": "http://ha.invalid", "token": "tok-1234"}}).json()
+    assert not unreachable["ok"] and unreachable["error"]
+
+
+@pytest.mark.parametrize("fields", [{"url": "", "token": "t"}, {"url": "ha.lan:8123", "token": "t"},
+                                    {"url": "http://ha.lan"}])
+def test_home_assistant_form_needs_a_url_and_a_token(client, ha_check, fields):
+    assert client.post("/api/connections/home-assistant/test", json={"fields": fields}).status_code == 400
+
+
+def test_home_assistant_save_takes_effect_without_a_restart(client, ha_check, paths):
+    resp = client.put("/api/connections/home-assistant",
+                      json={"fields": {"url": "http://ha.lan:8123", "token": "tok-1234", "verify_ssl": "false"}})
+    assert resp.json() == {"saved": True} and client.restarts == []
+    link = client.app.state.home_assistant
+    assert (link.ha.base_url, link.ha.token, link.ha.verify_ssl) == ("http://ha.lan:8123", "tok-1234", False)
+    assert "tok-1234" not in open(paths[0]).read()
+    summary = client.get("/api/connections").json()["home_assistant"]
+    assert summary["url"] == "http://ha.lan:8123" and summary["token_set"] and "tok-1234" not in str(summary)
+
+    # A blank token keeps the saved one.
+    client.put("/api/connections/home-assistant", json={"fields": {"url": "http://ha2.lan:8123", "token": ""}})
+    assert load_home_assistant(settings).token == "tok-1234"
+    assert ha_check[-1] == ("http://ha2.lan:8123", "tok-1234", True)
+
+
+def test_home_assistant_save_refuses_one_that_fails_its_test(client, ha_check, paths):
+    resp = client.put("/api/connections/home-assistant",
+                      json={"fields": {"url": "http://ha.invalid", "token": "tok-1234"}})
+    assert resp.status_code == 400 and resp.json()["detail"].startswith("Not saved")
+    assert load_home_assistant(settings) is None and client.app.state.home_assistant.ha is None
+
+
+def test_catalog_without_home_assistant_says_to_set_it_up(client):
+    resp = client.get("/api/home-assistant/catalog")
+    assert resp.status_code == 409 and "Connections" in resp.json()["detail"]
+
+
+def _old_adapters(paths, body):
+    with open(os.path.join(os.path.dirname(paths[0]), "adapters.yaml"), "w") as f:
+        f.write(body)
+
+
+def test_the_old_home_assistant_adapter_moves_over_once(paths):
+    set_secret(paths[1], "home_assistant_token", "old-token")
+    _old_adapters(paths, "adapters:\n  - name: bedroom\n    type: bedside_device\n"
+                         "  - name: home_assistant\n    type: home_assistant\n    options:\n"
+                         "      base_url: http://192.0.2.29:8123/\n      token: {secret: home_assistant_token}\n"
+                         "      verify_ssl: false\n      entities: light.*\n")
+    s = _env_settings(paths)
+    assert import_home_assistant_adapter(s) is True
+    conn = load_home_assistant(s)
+    assert (conn.url, conn.token, conn.verify_ssl) == ("http://192.0.2.29:8123", "old-token", False)
+    assert import_home_assistant_adapter(s) is False  # already there
+
+
+def test_an_old_literal_token_is_encrypted_when_it_moves(paths):
+    _old_adapters(paths, "adapters:\n  - name: ha\n    type: home_assistant\n    options:\n"
+                         "      base_url: http://ha.lan:8123\n      token: literal-token\n")
+    s = _env_settings(paths)
+    assert import_home_assistant_adapter(s) is True
+    assert "literal-token" not in open(paths[0]).read()
+    assert get_secret(paths[1], "connection_home_assistant_token") == "literal-token"
+
+
+def test_nothing_to_move_without_a_home_assistant_adapter(paths):
+    s = _env_settings(paths)
+    assert import_home_assistant_adapter(s) is False  # no adapters.yaml at all
+    _old_adapters(paths, "adapters:\n  - name: kuma\n    type: uptime_kuma\n")
+    assert import_home_assistant_adapter(s) is False
+    assert load_home_assistant(s) is None

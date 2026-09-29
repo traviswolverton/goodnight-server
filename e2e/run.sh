@@ -36,6 +36,7 @@ cp "$HERE"/seed/*.yaml "$WORK/cfg/"
 chmod -R a+rwX "$WORK/cfg" "$HERE/shots"
 
 PG_PW="$(openssl rand -hex 12)"; APP_PW="$(openssl rand -hex 12)"; ADMIN_PW="e2e-$(openssl rand -hex 8)"
+SECRETS_KEY="$(openssl rand -base64 32 | tr '+/' '-_')"   # a Fernet key
 
 echo "==> starting Postgres, Mosquitto and the app"
 docker network create "$NET" >/dev/null
@@ -48,11 +49,12 @@ sleep 3
 docker run -d --name "$ID-app" --network "$NET" --network-alias dashapp --user "$(id -u):$(id -g)" \
   -v "$WORK/cfg:/app/config" -e MQTT_HOST=mqtt \
   -e DATABASE_URL="postgresql+asyncpg://bedside_dashboard:$APP_PW@pg:5432/bedside_dashboard" \
-  -e ADMIN_USERNAME=smokeadmin -e ADMIN_PASSWORD="$ADMIN_PW" -e APP_VERSION=e2e "dd-$ID-app" >/dev/null
+  -e ADMIN_USERNAME=smokeadmin -e ADMIN_PASSWORD="$ADMIN_PW" -e SECRETS_MASTER_KEY="$SECRETS_KEY" \
+  -e APP_VERSION=e2e "dd-$ID-app" >/dev/null
 for _ in $(seq 1 60); do
   docker run --rm --network "$NET" curlimages/curl -fs http://dashapp:8000/healthz >/dev/null 2>&1 && break; sleep 1
 done
-sleep 6   # first poll + first heartbeat
+sleep 3   # the database's migrations and first admin
 
 run() {
   docker run --rm --network "$NET" --user "$(id -u):$(id -g)" -e HOME=/tmp -e npm_config_cache=/tmp/.npm \

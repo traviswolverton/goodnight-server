@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { splitList } from '@/lib/adapter-fields'
 import { describeAction, slugify } from '@/lib/actions'
 
 describe('slugify', () => {
@@ -15,11 +14,5 @@ describe('describeAction', () => {
     expect(describeAction({ id: 'a', kind: 'service', service: 'light.toggle', target: 'light.desk' })).toBe('light.toggle → light.desk')
     expect(describeAction({ id: 'a', kind: 'script', service: null, target: 'script.movie' })).toBe('script.movie')
     expect(describeAction({ id: 'bed', kind: 'event', service: null, target: null })).toBe('event desk_dashboard_action (bed)')
-  })
-})
-
-describe('splitList', () => {
-  it('splits and trims a comma-separated field, dropping blanks', () => {
-    expect(splitList(' light.desk,, sensor.* ,')).toEqual(['light.desk', 'sensor.*'])
   })
 })

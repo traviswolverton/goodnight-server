@@ -1,19 +1,18 @@
-"""Encrypted storage for per-adapter credentials.
+"""Encrypted storage for passwords and tokens.
 
 Secrets live in config/secrets.enc.yaml as `{secret_name: fernet_token}`
-pairs; adapters.yaml references one from an option with
-`password: {secret: adguard_main_password}` and load_adapters()
-(app/config.py) decrypts it at load time. Encryption is Fernet
-(symmetric, authenticated) keyed by the single SECRETS_MASTER_KEY
-setting — the one value still held in the clear (.env), instead of one
-plaintext password per adapter.
+pairs; config/connections.yaml references one with
+`password: {secret: connection_mqtt_password}` and app/connections.py
+decrypts it when it's read. Encryption is Fernet (symmetric,
+authenticated) keyed by the single SECRETS_MASTER_KEY setting — the one
+value still held in the clear (.env), instead of every password.
 
 Named secret_store, not secrets, so it can never be confused with the
 stdlib module of that name.
 
 File shape:
     secrets:
-      adguard_main_password: "gAAAAA..."
+      connection_mqtt_password: "gAAAAA..."
 """
 from __future__ import annotations
 

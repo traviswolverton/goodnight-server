@@ -10,13 +10,13 @@ const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.
 vi.mock('sonner', () => ({ toast }))
 
 const field = (over: Partial<SettingField> & Pick<SettingField, 'key' | 'label' | 'kind'>): SettingField => ({
-  group: 'Polling', help: '', minimum: null, maximum: null, unit: null, options: [], placeholder: null,
+  group: 'Sign-in and security', help: '', minimum: null, maximum: null, unit: null, options: [], placeholder: null,
   value: null, baseline: null, source: 'default', ...over,
 })
 
 const data: SettingsResponse = {
   fields: [
-    field({ key: 'poll_interval_seconds', label: 'Poll interval', kind: 'number', value: 15, baseline: 15, unit: 'seconds', source: 'env' }),
+    field({ key: 'session_idle_hours', label: 'Sign out after idle', kind: 'number', value: 24, baseline: 24, unit: 'hours', source: 'env' }),
     field({ key: 'audit_retention_days', label: 'Keep audit log for', kind: 'integer', value: 90, baseline: 365, source: 'app' }),
     field({ key: 'https_only', label: 'HTTPS only', kind: 'boolean', group: 'Sign-in and security', value: false, baseline: false }),
     field({ key: 'ollama_base_url', label: 'Ollama URL', kind: 'text', group: 'AI assist', value: 'http://ollama:11434' }),
@@ -59,28 +59,28 @@ describe('SettingsPage', () => {
   it('sends only what changed, and resets as null', async () => {
     const user = userEvent.setup()
     renderPage()
-    const poll = await screen.findByLabelText('Poll interval')
+    const idle = await screen.findByLabelText('Sign out after idle')
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-    await user.clear(poll)
-    await user.type(poll, '30')
+    await user.clear(idle)
+    await user.type(idle, '30')
     await user.click(screen.getByRole('button', { name: /Reset/ })) // only the audit log setting is "Set here"
     expect(screen.getByText('2 unsaved changes')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(putBody()).toEqual({ values: { poll_interval_seconds: '30', audit_retention_days: null } })
+    expect(putBody()).toEqual({ values: { session_idle_hours: '30', audit_retention_days: null } })
     expect(toast.success).toHaveBeenCalled()
   })
 
   it('shows a refused save’s reason', async () => {
     const user = userEvent.setup()
     fetchMock.mockImplementation(async (_url, init) =>
-      init?.method === 'PUT' ? json({ detail: 'Poll interval: must be at most 3600' }, 400) : json(data),
+      init?.method === 'PUT' ? json({ detail: 'Sign out after idle: must be at most 720' }, 400) : json(data),
     )
     renderPage()
-    const poll = await screen.findByLabelText('Poll interval')
-    await user.clear(poll)
-    await user.type(poll, '9999')
+    const idle = await screen.findByLabelText('Sign out after idle')
+    await user.clear(idle)
+    await user.type(idle, '9999')
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await screen.findByText('Poll interval: must be at most 3600')).toBeInTheDocument()
+    expect(await screen.findByText('Sign out after idle: must be at most 720')).toBeInTheDocument()
   })
 
   it('won’t let HTTPS only be switched on from a plain-HTTP page', async () => {

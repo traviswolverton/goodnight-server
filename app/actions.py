@@ -2,11 +2,10 @@
 run a script), defined in config/actions.yaml and bound to buttons on the
 Buttons page. See DESIGN.md "Actions".
 
-An Action is plain data with no code change needed to add one. It names
-the adapter that performs it (today, a Home Assistant adapter —
-`Adapter.action_kinds` says which adapters can) and optionally a
-`state_template` whose output the web UI shows next to the label ("on",
-"21.5°").
+An Action is plain data with no code change needed to add one: a Home
+Assistant service, script or event (app/home_assistant.py), and
+optionally a `state_template` whose output the web UI shows next to the
+label ("on", "21.5 C"; app/state_templates.py).
 
 The device only ever says which button was pressed; everything that does
 something — the service, the target, the credentials — stays here. So the
@@ -96,8 +95,6 @@ class ActionConfig(BaseModel):
     id: str
     """Stable identifier, the only thing the display sends back."""
     label: str
-    adapter: str
-    """Name of the adapter (adapters.yaml) that performs it."""
     kind: ActionKind = "service"
     service: str | None = None
     """kind=service: `domain.service`, e.g. `light.toggle`."""
@@ -237,12 +234,14 @@ class ActionOutcome(BaseModel):
 
 
 class ActionRunner:
-    """Runs actions by id, for both the display (app.mqtt's action listener)
+    """Runs actions by id, for both the device's buttons (app/device.py)
     and the web UI's Run button. Owns the debounce, so the two can't
     double-fire each other either."""
 
-    def __init__(self, aggregator, config_path: str) -> None:
-        self.aggregator = aggregator
+    def __init__(self, home_assistant, config_path: str) -> None:
+        self.home_assistant = home_assistant
+        """An app.home_assistant.HomeAssistantLink: read at each run, so a
+        connection saved meanwhile is used straight away."""
         self.config_path = config_path
         self._last_run: dict[str, float] = {}
 
@@ -257,38 +256,33 @@ class ActionRunner:
             return ActionOutcome(ok=False, text="Too soon")
         self._last_run[action_id] = now
 
-        adapter = self.aggregator.get_adapter(action.adapter)
-        if adapter is None:
-            logger.warning("action %r: adapter %r isn't loaded", action_id, action.adapter)
-            return ActionOutcome(ok=False, text="No adapter")
-        if action.kind not in adapter.action_kinds:
-            return ActionOutcome(ok=False, text="Not supported")
-        client = self.aggregator.client
+        ha = self.home_assistant.ha
+        if ha is None:
+            logger.warning("action %r: Home Assistant isn't set up (Connections page)", action_id)
+            return ActionOutcome(ok=False, text="No HA")
+        client = self.home_assistant.client
 
         if action.verify is not None:
             # "Make sure it's closed", not "close it": already there means
             # nothing to do, and that's a success.
             try:
-                if _verify_result(action.verify, await adapter.read_states(client, action.verify.entities)) is True:
+                if _verify_result(action.verify, await ha.read_states(client, action.verify.entities)) is True:
                     logger.info("action %r from %s: already done, nothing sent", action_id, source)
                     return ActionOutcome(ok=True, text="Already ok")
             except Exception as exc:  # noqa: BLE001 - a failed pre-check just means run it
                 logger.warning("action %r: couldn't read its entities before running (%s)", action_id, exc)
 
         try:
-            text = await asyncio.wait_for(adapter.run_action(client, action), timeout=15)
+            text = await asyncio.wait_for(ha.run_action(client, action), timeout=15)
         except Exception as exc:  # noqa: BLE001 - any failure is reported, never raised
             logger.warning("action %r from %s failed: %s", action_id, source, exc)
             return ActionOutcome(ok=False, text="Failed")
         logger.info("action %r run from %s", action_id, source)
-        # Show the result (a light now "on") without waiting a whole poll
-        # interval; the short delay gives Home Assistant time to update.
-        self.aggregator.request_poll(delay=1.0)
         if action.verify is None:
             return ActionOutcome(ok=True, text=(text or "Done")[:STATE_MAX])
-        return await self._verify(action, adapter, source)
+        return await self._verify(action, ha, source)
 
-    async def _verify(self, action: ActionConfig, adapter, source: str) -> ActionOutcome:
+    async def _verify(self, action: ActionConfig, ha, source: str) -> ActionOutcome:
         """Poll the action's entities until they all pass, one is lost, or
         the timeout runs out."""
         check = action.verify
@@ -296,12 +290,11 @@ class ActionRunner:
         last: dict[str, str | None] = {}
         while True:
             try:
-                last = await adapter.read_states(self.aggregator.client, check.entities)
+                last = await ha.read_states(self.home_assistant.client, check.entities)
             except Exception as exc:  # noqa: BLE001 - one failed read isn't the verdict
                 logger.warning("action %r: couldn't read its entities (%s)", action.id, exc)
             result = _verify_result(check, last)
             if result is True:
-                self.aggregator.request_poll(delay=0)
                 return ActionOutcome(ok=True, text="Done")
             if result == "gone":
                 logger.warning("action %r from %s: an entity it checks is unavailable: %s",
