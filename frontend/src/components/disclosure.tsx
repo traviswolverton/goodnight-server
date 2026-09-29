@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { ChevronDown, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -48,5 +48,28 @@ export function InfoToggle({ open, onToggle, controls, label }: { open: boolean;
     >
       <Info className="size-4" aria-hidden="true" />
     </button>
+  )
+}
+
+/** A text button that opens an extra explanation or example beneath it. */
+export function Reveal({ label, children, defaultOpen = false }: { label: string; children: ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const panel = useId()
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panel}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 rounded-sm text-sm font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        {label}
+        <ChevronDown className={cn('size-4 transition-transform duration-200', open && 'rotate-180')} aria-hidden="true" />
+      </button>
+      <Collapse open={open} id={panel}>
+        <div className="pt-3">{children}</div>
+      </Collapse>
+    </div>
   )
 }

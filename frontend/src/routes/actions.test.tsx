@@ -3,8 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setCsrfToken } from '@/lib/api'
-import type { ActionsResponse } from '@/lib/types'
-import { ActionEditor } from '@/routes/actions'
+import type { ActionInfo, ActionsResponse } from '@/lib/types'
+import { ActionEditor, ActionRow } from '@/routes/actions'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }))
 vi.mock('sonner', () => ({ toast }))
@@ -101,5 +101,52 @@ describe('ActionEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Extra data must be a JSON object'))
     expect(onDone).not.toHaveBeenCalled()
+  })
+})
+
+describe('ActionEditor guidance', () => {
+  it('shows what a press will do as the form changes', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    expect(screen.getByText(/only means the request was accepted/)).toBeInTheDocument()
+    await user.click(screen.getByRole('switch', { name: /Ask for a second press/ }))
+    expect(screen.getByText(/one beep, and it’s armed/)).toBeInTheDocument()
+  })
+
+  it('offers an example script for the script kind', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    expect(screen.queryByText(/Doing several things/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: /Run a script/ }))
+    const toggle = screen.getByRole('button', { name: /Doing several things/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText(/cover\.close_cover/)).toBeInTheDocument()
+  })
+})
+
+describe('ActionRow', () => {
+  const action: ActionInfo = {
+    id: 'garage', label: 'Close garage', kind: 'service', service: 'cover.close_cover', target: 'cover.left', data: {},
+    confirm: true, state_template: null, verify: { entities: ['cover.left'], state: 'closed', timeout: 45 },
+    resolved_state: 'open', state_error: null,
+  }
+
+  it('says what it does and keeps the step-by-step behind a toggle', async () => {
+    const user = userEvent.setup()
+    const client = new QueryClient()
+    render(
+      <QueryClientProvider client={client}>
+        <ActionRow action={action} canEdit onEdit={vi.fn()} onRemove={vi.fn()} onRan={vi.fn()} />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByText('Asks to confirm')).toBeInTheDocument()
+    expect(screen.getByText('Checks for closed')).toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: /What happens when it’s pressed/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText(/up to 45 seconds/)).toBeInTheDocument()
   })
 })

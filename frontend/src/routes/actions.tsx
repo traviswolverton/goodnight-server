@@ -1,20 +1,22 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Braces, ListChecks, Loader2, Pencil, Play, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import { Braces, Check, CheckCheck, ListChecks, Loader2, Pencil, Play, Plus, Radio, ScrollText, ShieldCheck, Trash2, TriangleAlert, Zap, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import { ActionGuide, EXAMPLE_SCRIPT } from '@/components/action-guide'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Diag } from '@/components/diag'
+import { Reveal } from '@/components/disclosure'
 import { EntityPicker } from '@/components/entity-picker'
 import { PageHeader } from '@/components/page-header'
 import { EmptyState, LoadError, LoadingBlocks } from '@/components/query-state'
 import { ReadOnlyNote } from '@/components/read-only-note'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { VariablesPanel } from '@/components/variables-panel'
@@ -22,17 +24,30 @@ import { useCanEdit } from '@/hooks/use-can-edit'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { api } from '@/lib/api'
 import { errorMessage, toastError } from '@/lib/mutations'
-import { describeAction, slugify } from '@/lib/actions'
+import { describeAction, explainAction, slugify } from '@/lib/actions'
 import { actionsQuery } from '@/lib/queries'
 import { insertText } from '@/lib/vars'
+import { cn } from '@/lib/utils'
 import type { ActionConfig, ActionInfo, ActionKind, ActionOutcome, ActionsResponse, HomeAssistantCatalog, PreviewActionStateResponse } from '@/lib/types'
 
-const KIND_LABELS: Record<ActionKind, string> = {
-  service: 'Call a service',
-  script: 'Run a script',
-  event: 'Fire an event',
+const KIND_INFO: Record<ActionKind, { label: string; icon: LucideIcon; blurb: string }> = {
+  service: {
+    label: 'Call a service',
+    icon: Zap,
+    blurb: 'One Home Assistant service, like light.toggle. The simplest choice when a button does one thing.',
+  },
+  script: {
+    label: 'Run a script',
+    icon: ScrollText,
+    blurb: 'A script you’ve written in Home Assistant. The way to do several things at once, like closing the garage and turning off the lights.',
+  },
+  event: {
+    label: 'Fire an event',
+    icon: Radio,
+    blurb: 'Sends an event for a Home Assistant automation to react to. The only kind that needs an automation.',
+  },
 }
-const KINDS = Object.keys(KIND_LABELS) as ActionKind[]
+const KINDS = Object.keys(KIND_INFO) as ActionKind[]
 
 /** Home Assistant's entities and services, for the editor's pickers. */
 const loadCatalog = () => api<HomeAssistantCatalog>('/api/home-assistant/catalog')
@@ -57,7 +72,7 @@ export function ActionsPage() {
   })
 
   return (
-    <>
+    <div className="max-w-3xl">
       <PageHeader
         title="Actions"
         description="Things a button on the device can make happen. This server does the work — the device only says which button was pressed."
@@ -89,6 +104,10 @@ export function ActionsPage() {
               </Alert>
             )
           )}
+
+          {/* Open for a first visit; a closed one-liner once there's something to look at. */}
+          <ActionGuide defaultOpen={data.actions.length === 0} />
+
           <Card>
             <CardHeader>
               <CardTitle>Your actions</CardTitle>
@@ -106,7 +125,12 @@ export function ActionsPage() {
             </CardHeader>
             <CardContent>
               {data.actions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No actions yet.</p>
+                <p className="text-sm text-muted-foreground">
+                  No actions yet.{' '}
+                  {canEdit && data.home_assistant.set_up
+                    ? 'Add one to start: a good first try is “Call a service” with light.toggle on a lamp.'
+                    : ''}
+                </p>
               ) : (
                 <ul className="divide-y" aria-label="Actions">
                   {data.actions.map((action) => (
@@ -151,11 +175,11 @@ export function ActionsPage() {
           setRemoving(null)
         }}
       />
-    </>
+    </div>
   )
 }
 
-function ActionRow({
+export function ActionRow({
   action,
   canEdit,
   onEdit,
@@ -178,31 +202,50 @@ function ActionRow({
     },
     onError: (e) => toastError(e, 'Run failed'),
   })
+  const { icon: KindIcon, label: kindLabel } = KIND_INFO[action.kind]
 
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-      <div className="grid min-w-0 flex-1 gap-0.5">
-        <span className="flex items-baseline gap-2">
-          <span className="font-medium">{action.label}</span>
+    <li className="grid gap-3 py-4">
+      <div className="grid min-w-0 gap-1.5">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="text-base font-medium">{action.label}</span>
           {action.resolved_state && <span className="font-mono text-sm text-muted-foreground">{action.resolved_state}</span>}
-          {action.confirm && <span className="text-xs text-muted-foreground">asks to confirm</span>}
-          {action.verify && <span className="text-xs text-muted-foreground">checks for {action.verify.state}</span>}
-        </span>
-        <span className="truncate font-mono text-xs text-muted-foreground">
-          {describeAction(action)}
-        </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline">
+            <KindIcon aria-hidden="true" /> {kindLabel}
+          </Badge>
+          {action.confirm && (
+            <Badge variant="secondary">
+              <ShieldCheck aria-hidden="true" /> Asks to confirm
+            </Badge>
+          )}
+          {action.verify && (
+            <Badge variant="secondary">
+              <CheckCheck aria-hidden="true" /> Checks for {action.verify.state}
+            </Badge>
+          )}
+        </div>
+        <span className="font-mono text-xs break-all text-muted-foreground">{describeAction(action)}</span>
         {action.state_error && <span className="text-xs text-destructive">State template error: {action.state_error}</span>}
       </div>
+      <Reveal label="What happens when it’s pressed">
+        <ol className="grid list-decimal gap-1.5 pl-5 text-sm text-muted-foreground marker:font-medium">
+          {explainAction(action).map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+      </Reveal>
       {canEdit && (
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => run.mutate()} disabled={run.isPending} aria-label={`Run ${action.label} now`}>
             {run.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play aria-hidden="true" />} Run
           </Button>
-          <Button variant="ghost" size="sm" onClick={onEdit} aria-label={`Edit ${action.label}`}>
-            <Pencil aria-hidden="true" />
+          <Button variant="outline" size="sm" onClick={onEdit} aria-label={`Edit ${action.label}`}>
+            <Pencil aria-hidden="true" /> Edit
           </Button>
           <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={onRemove} aria-label={`Remove ${action.label}`}>
-            <Trash2 aria-hidden="true" />
+            <Trash2 aria-hidden="true" /> Remove
           </Button>
         </div>
       )}
@@ -312,21 +355,37 @@ export function ActionEditor({
     if (first) setStateTemplate(`{{ states['${first}'].state }}`)
   }
 
+  // What a press would do with the form as it stands right now.
+  const draft = {
+    id: id.trim(),
+    kind,
+    service: service.trim() || null,
+    target: target.trim() || null,
+    confirm,
+    verify: verifyOn ? { entities: splitEntities(verifyEntities), state: verifyState.trim(), timeout: Number(verifyTimeout) || 30 } : null,
+  }
+
+  const card = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    // It opens below the list: bring it into view (not in every environment, e.g. tests).
+    card.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }, [])
+
   return (
-    <Card>
+    <Card ref={card} className="scroll-mt-20">
       <CardHeader>
         <CardTitle>{original ? `Edit “${original.label}”` : 'New action'}</CardTitle>
         <CardDescription>Saved to config/actions.yaml. Takes effect straight away, no restart.</CardDescription>
       </CardHeader>
       <CardContent>
         <form
-          className="grid gap-5"
+          className="grid gap-4"
           onSubmit={(e) => {
             e.preventDefault()
             save.mutate()
           }}
         >
-          <div className="grid gap-4 sm:grid-cols-2">
+          <Step n={1} title="Name it" description="What the display shows, and the id it sends when the button is pressed.">
             <div className="grid gap-2">
               <Label htmlFor={`${prefix}-label`}>Label</Label>
               <Input
@@ -358,106 +417,157 @@ export function ActionEditor({
                   setId(e.target.value)
                 }}
               />
-              <p className="text-xs text-muted-foreground">What the display sends. Lowercase letters, digits and underscores.</p>
+              <p className="text-xs text-muted-foreground">
+                Filled in from the label. Lowercase letters, digits and underscores; it’s what the display sends, so you rarely need to
+                change it.
+              </p>
             </div>
-          </div>
+          </Step>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor={`${prefix}-kind`}>What it does</Label>
-              <Select value={kind} onValueChange={(v) => setKind(v as ActionKind)}>
-                <SelectTrigger id={`${prefix}-kind`} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {KINDS.map((k) => (
-                    <SelectItem key={k} value={k}>
-                      {KIND_LABELS[k]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <Step n={2} title="What it does" description="Every action makes one call to Home Assistant. For several things at once, run a script.">
+            <div role="radiogroup" aria-label="What it does" className="grid gap-2">
+              {KINDS.map((k) => {
+                const { icon: Icon, label: kindLabel, blurb } = KIND_INFO[k]
+                return (
+                  <label
+                    key={k}
+                    className={cn(
+                      'flex cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-sm transition-colors',
+                      'hover:bg-accent/50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring',
+                      kind === k && 'border-primary bg-accent/40 ring-2 ring-primary/30',
+                    )}
+                  >
+                    <input type="radio" className="sr-only" name={`${prefix}-kind`} value={k} checked={kind === k} onChange={() => setKind(k)} />
+                    <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span className="grid min-w-0 gap-0.5">
+                      <span className="font-medium">{kindLabel}</span>
+                      <span className="text-muted-foreground">{blurb}</span>
+                    </span>
+                    {kind === k && <Check className="ml-auto size-4 shrink-0 text-primary" aria-hidden="true" />}
+                  </label>
+                )
+              })}
             </div>
-          </div>
 
-          {kind === 'service' && (
-            <div className="grid gap-2">
-              <Label htmlFor={`${prefix}-service`}>Service</Label>
-              <Input
-                id={`${prefix}-service`}
-                required
-                className="font-mono"
-                list={`${prefix}-services`}
-                value={service}
-                placeholder="light.toggle"
-                onChange={(e) => setService(e.target.value)}
-              />
-              <datalist id={`${prefix}-services`}>
-                {(catalog.data?.services ?? []).map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
-              {catalog.error && <p className="text-xs text-destructive">Couldn&rsquo;t load the service list: {errorMessage(catalog.error)}</p>}
-            </div>
-          )}
-
-          {kind !== 'event' && (
-            <div className="grid gap-2">
-              <Label htmlFor={`${prefix}-target`}>{kind === 'script' ? 'Script' : 'Target entity (optional for some services)'}</Label>
-              <div className="flex gap-2">
+            {kind === 'service' && (
+              <div className="grid gap-2">
+                <Label htmlFor={`${prefix}-service`}>Service</Label>
                 <Input
-                  id={`${prefix}-target`}
-                  required={kind === 'script'}
+                  id={`${prefix}-service`}
+                  required
                   className="font-mono"
-                  value={target}
-                  placeholder={kind === 'script' ? 'script.movie_mode' : 'light.desk'}
-                  onChange={(e) => setTarget(e.target.value)}
+                  list={`${prefix}-services`}
+                  value={service}
+                  placeholder="light.toggle"
+                  onChange={(e) => setService(e.target.value)}
                 />
-                <Button type="button" variant="outline" onClick={() => setPicking(true)}>
-                  <ListChecks aria-hidden="true" /> Choose…
-                </Button>
+                <datalist id={`${prefix}-services`}>
+                  {(catalog.data?.services ?? []).map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+                <p className="text-xs text-muted-foreground">
+                  In the form <code>domain.service</code>. Start typing and Home Assistant’s own services are suggested. Prefer a
+                  one-way service like <code>cover.close_cover</code> to a toggle if you’ll add a check.
+                </p>
+                {catalog.error && <p className="text-xs text-destructive">Couldn&rsquo;t load the service list: {errorMessage(catalog.error)}</p>}
               </div>
-              {picking && (
-                <EntityPicker
-                  open
-                  onOpenChange={(open) => !open && setPicking(false)}
-                  title={kind === 'script' ? 'Choose a script' : 'Choose the target entity'}
-                  description={targetDomain ? `Filtered to ${targetDomain}.* to start with — clear the filter to see everything.` : 'Every entity Home Assistant has.'}
-                  queryKey={['home-assistant']}
-                  load={loadCatalog}
-                  onPick={([picked]) => setTarget(picked)}
-                  initialFilter={targetDomain ? `${targetDomain}.` : ''}
-                />
-              )}
+            )}
+
+            {kind !== 'event' && (
+              <div className="grid gap-2">
+                <Label htmlFor={`${prefix}-target`}>{kind === 'script' ? 'Script' : 'Target entity (optional for some services)'}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id={`${prefix}-target`}
+                    required={kind === 'script'}
+                    className="min-w-0 font-mono"
+                    value={target}
+                    placeholder={kind === 'script' ? 'script.goodnight' : 'light.desk'}
+                    onChange={(e) => setTarget(e.target.value)}
+                  />
+                  <Button type="button" variant="outline" onClick={() => setPicking(true)}>
+                    <ListChecks aria-hidden="true" /> Choose…
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {kind === 'script'
+                    ? 'A script.* entity from Home Assistant.'
+                    : 'The thing the service acts on: a light, a lock, a cover. Several can be listed, separated by commas.'}
+                </p>
+                {picking && (
+                  <EntityPicker
+                    open
+                    onOpenChange={(open) => !open && setPicking(false)}
+                    title={kind === 'script' ? 'Choose a script' : 'Choose the target entity'}
+                    description={targetDomain ? `Filtered to ${targetDomain}.* to start with — clear the filter to see everything.` : 'Every entity Home Assistant has.'}
+                    queryKey={['home-assistant']}
+                    load={loadCatalog}
+                    onPick={([picked]) => setTarget(picked)}
+                    initialFilter={targetDomain ? `${targetDomain}.` : ''}
+                  />
+                )}
+              </div>
+            )}
+
+            {kind === 'script' && (
+              <Reveal label="Doing several things? Here’s an example script">
+                <div className="grid gap-2 text-sm text-muted-foreground">
+                  <p>
+                    Write it in Home Assistant (Settings, Automations &amp; scenes, Scripts), then choose it above:
+                  </p>
+                  <Diag kind="blank">{EXAMPLE_SCRIPT}</Diag>
+                  <p>
+                    To check the garage really closed, turn on the check below and list the two garage covers. A check watches one
+                    state for all its entities, so leave the lights out of it.
+                  </p>
+                </div>
+              </Reveal>
+            )}
+
+            {kind === 'event' && (
+              <Diag kind="blank">
+                {`Fires desk_dashboard_action. Trigger a Home Assistant automation with:\n\ntriggers:\n  - trigger: event\n    event_type: desk_dashboard_action\n    event_data:\n      action: ${id || '<id>'}`}
+              </Diag>
+            )}
+
+            <div className="grid gap-2">
+              <Label htmlFor={`${prefix}-data`}>
+                {kind === 'script' ? 'Script variables' : kind === 'event' ? 'Extra event data' : 'Extra service data'} (optional, JSON)
+              </Label>
+              <Textarea
+                id={`${prefix}-data`}
+                className="font-mono text-sm"
+                rows={3}
+                value={dataText}
+                placeholder={kind === 'service' ? '{"brightness_pct": 40}' : '{}'}
+                onChange={(e) => setDataText(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                {kind === 'service'
+                  ? 'Anything else the service takes, as a JSON object.'
+                  : kind === 'script'
+                    ? 'Passed to the script as variables.'
+                    : 'Sent along with the event, for the automation to read.'}
+              </p>
             </div>
-          )}
+          </Step>
 
-          {kind === 'event' && (
-            <Diag kind="blank">
-              {`Fires desk_dashboard_action. Trigger a Home Assistant automation with:\n\ntriggers:\n  - trigger: event\n    event_type: desk_dashboard_action\n    event_data:\n      action: ${id || '<id>'}`}
-            </Diag>
-          )}
+          <Step n={3} title="Ask before it runs" description="For locks, doors, anything you don’t want to trigger in the dark.">
+            <div className="flex items-center gap-3">
+              <Switch id={`${prefix}-confirm`} checked={confirm} onCheckedChange={setConfirm} />
+              <Label htmlFor={`${prefix}-confirm`}>Ask for a second press first — for locks, doors, anything you don&rsquo;t want to trigger by accident</Label>
+            </div>
+            <Reveal label="How the second press works">
+              <p className="text-sm text-muted-foreground">
+                The first press arms it (one beep). Press the same button, the same way, again within 5 seconds and it runs. A different
+                button, the other press length, or waiting too long cancels it. So a quick tap meant for a lamp can never confirm the
+                garage.
+              </p>
+            </Reveal>
+          </Step>
 
-          <div className="grid gap-2">
-            <Label htmlFor={`${prefix}-data`}>
-              {kind === 'script' ? 'Script variables' : kind === 'event' ? 'Extra event data' : 'Extra service data'} (optional, JSON)
-            </Label>
-            <Textarea
-              id={`${prefix}-data`}
-              className="font-mono text-sm"
-              rows={3}
-              value={dataText}
-              placeholder={kind === 'service' ? '{"brightness_pct": 40}' : '{}'}
-              onChange={(e) => setDataText(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Switch id={`${prefix}-confirm`} checked={confirm} onCheckedChange={setConfirm} />
-            <Label htmlFor={`${prefix}-confirm`}>Ask for a second press first — for locks, doors, anything you don&rsquo;t want to trigger by accident</Label>
-          </div>
-
-          <section className="grid gap-3" aria-labelledby={`${prefix}-verify-heading`}>
+          <Step n={4} title="Check that it worked" description="Without a check, “done” only means Home Assistant accepted the request.">
             <div className="flex items-center gap-3">
               <Switch id={`${prefix}-verify`} checked={verifyOn} onCheckedChange={setVerifyOn} aria-describedby={`${prefix}-verify-help`} />
               <Label htmlFor={`${prefix}-verify`} id={`${prefix}-verify-heading`}>
@@ -465,12 +575,11 @@ export function ActionEditor({
               </Label>
             </div>
             <p id={`${prefix}-verify-help`} className="text-sm text-muted-foreground">
-              Otherwise &ldquo;done&rdquo; only means Home Assistant accepted the request. With a check, it waits for the entities to
-              reach the state, and fails (the loud beep on the device) if they don&rsquo;t in time. If they&rsquo;re already there,
-              nothing is sent.
+              With a check, it waits for the entities to reach the state, and fails (the loud buzz on the device) if they don&rsquo;t in
+              time. If they&rsquo;re already there, nothing is sent.
             </p>
             {verifyOn && (
-              <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr]">
+              <>
                 <div className="grid gap-2">
                   <Label htmlFor={`${prefix}-verify-entities`}>Entities</Label>
                   <div className="flex gap-2">
@@ -486,18 +595,19 @@ export function ActionEditor({
                       <ListChecks aria-hidden="true" />
                     </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">Every one must reach the state. Separate them with commas.</p>
                   {target && kind !== 'event' && verifyEntities.trim() === '' && (
                     <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => setVerifyEntities(target)}>
                       Use the target
                     </Button>
                   )}
                 </div>
-                <div className="grid content-start gap-2">
+                <div className="grid gap-2">
                   <Label htmlFor={`${prefix}-verify-state`}>Must become</Label>
                   <Input
                     id={`${prefix}-verify-state`}
                     required
-                    className="font-mono text-sm"
+                    className="max-w-xs font-mono text-sm"
                     list={`${prefix}-verify-states`}
                     value={verifyState}
                     placeholder="closed"
@@ -508,21 +618,27 @@ export function ActionEditor({
                       <option key={s} value={s} />
                     ))}
                   </datalist>
+                  <p className="text-xs text-muted-foreground">
+                    Home Assistant’s own word for the state, in lowercase: <code>closed</code>, <code>locked</code>, <code>off</code>.
+                    You can see it on the entity’s page in Home Assistant.
+                  </p>
                 </div>
-                <div className="grid content-start gap-2">
+                <div className="grid gap-2">
                   <Label htmlFor={`${prefix}-verify-timeout`}>Within (seconds)</Label>
                   <Input
                     id={`${prefix}-verify-timeout`}
                     required
                     type="number"
                     inputMode="numeric"
+                    className="max-w-xs"
                     min={1}
                     max={300}
                     value={verifyTimeout}
                     onChange={(e) => setVerifyTimeout(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">How long to wait. A garage door might need 45; a light, 5.</p>
                 </div>
-              </div>
+              </>
             )}
             {pickingVerify && (
               <EntityPicker
@@ -538,70 +654,80 @@ export function ActionEditor({
                 initialFilter={targetDomain ? `${targetDomain}.` : ''}
               />
             )}
-          </section>
+          </Step>
 
-          <section className="grid gap-2" aria-labelledby={`${prefix}-state-heading`}>
-            <div>
-              <h3 id={`${prefix}-state-heading`} className="text-sm font-medium">
-                State beside the label (optional)
-              </h3>
+          <Step n={5} title="Show a status (optional)" description="A live value beside the label on this page, such as whether the lamp is on.">
+            <div className="grid gap-2">
               <p className="text-sm text-muted-foreground">
                 Jinja2, cut to {data.limits.state_max} characters. <code>{"states['light.desk'].state"}</code> is an entity&rsquo;s
                 state; <code>device.temperature_c</code> is the device&rsquo;s own reading.
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Label htmlFor={`${prefix}-state`} className="sr-only">
-                State template
-              </Label>
-              <Input
-                ref={stateInput}
-                id={`${prefix}-state`}
-                className="min-w-0 flex-1 font-mono text-sm"
-                value={stateTemplate}
-                placeholder="{{ states['light.desk'].state }}"
-                onChange={(e) => setStateTemplate(e.target.value)}
-              />
-              {target && kind !== 'event' && (
-                <Button type="button" variant="ghost" size="sm" onClick={fillTargetState}>
-                  Use the target&rsquo;s state
+              <div className="flex flex-wrap gap-2">
+                <Label htmlFor={`${prefix}-state`} className="sr-only">
+                  State template
+                </Label>
+                <Input
+                  ref={stateInput}
+                  id={`${prefix}-state`}
+                  className="min-w-0 flex-1 font-mono text-sm"
+                  value={stateTemplate}
+                  placeholder="{{ states['light.desk'].state }}"
+                  onChange={(e) => setStateTemplate(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {target && kind !== 'event' && (
+                  <Button type="button" variant="ghost" size="sm" onClick={fillTargetState}>
+                    Use the target&rsquo;s state
+                  </Button>
+                )}
+                <Button type="button" variant="ghost" size="sm" aria-label="Insert an entity’s state" onClick={() => setPickingState(true)}>
+                  <ListChecks aria-hidden="true" /> Entity…
                 </Button>
+                <Button type="button" variant="ghost" size="sm" aria-label="Insert a device reading in the state" onClick={() => setVarsOpen(true)}>
+                  <Braces aria-hidden="true" /> Device
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => preview.mutate()} disabled={!stateTemplate.trim() || preview.isPending}>
+                  Preview
+                </Button>
+              </div>
+              {pickingState && (
+                <EntityPicker
+                  open
+                  onOpenChange={(open) => !open && setPickingState(false)}
+                  title="Insert an entity’s state"
+                  description="Inserts {{ states['…'].state }} where your cursor was."
+                  queryKey={['home-assistant']}
+                  load={loadCatalog}
+                  onPick={([picked]) => insertVariable(`states['${picked}'].state`)}
+                />
               )}
-              <Button type="button" variant="ghost" size="sm" aria-label="Insert an entity’s state" onClick={() => setPickingState(true)}>
-                <ListChecks aria-hidden="true" /> Entity…
-              </Button>
-              <Button type="button" variant="ghost" size="sm" aria-label="Insert a device reading in the state" onClick={() => setVarsOpen(true)}>
-                <Braces aria-hidden="true" /> Device
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => preview.mutate()} disabled={!stateTemplate.trim() || preview.isPending}>
-                Preview
-              </Button>
+              <div aria-live="polite">
+                {statePreview?.problem && <p className="mb-1 text-xs text-muted-foreground">{statePreview.problem}</p>}
+                {statePreview &&
+                  (statePreview.error ? (
+                    <Diag kind="error">{statePreview.error}</Diag>
+                  ) : statePreview.state ? (
+                    <Diag kind="ok" aside={`${new TextEncoder().encode(statePreview.state).length} / ${data.limits.state_max}`}>
+                      {statePreview.state}
+                    </Diag>
+                  ) : (
+                    <Diag kind="blank">Renders empty — no state shown.</Diag>
+                  ))}
+              </div>
+              <VariablesPanel open={varsOpen} onOpenChange={setVarsOpen} context={data.context} target="the state" onInsert={insertVariable} />
             </div>
-            {pickingState && (
-              <EntityPicker
-                open
-                onOpenChange={(open) => !open && setPickingState(false)}
-                title="Insert an entity’s state"
-                description="Inserts {{ states['…'].state }} where your cursor was."
-                queryKey={['home-assistant']}
-                load={loadCatalog}
-                onPick={([picked]) => insertVariable(`states['${picked}'].state`)}
-              />
-            )}
-            <div aria-live="polite">
-              {statePreview?.problem && <p className="mb-1 text-xs text-muted-foreground">{statePreview.problem}</p>}
-              {statePreview &&
-                (statePreview.error ? (
-                  <Diag kind="error">{statePreview.error}</Diag>
-                ) : statePreview.state ? (
-                  <Diag kind="ok" aside={`${new TextEncoder().encode(statePreview.state).length} / ${data.limits.state_max}`}>
-                    {statePreview.state}
-                  </Diag>
-                ) : (
-                  <Diag kind="blank">Renders empty — no state shown.</Diag>
-                ))}
-            </div>
-            <VariablesPanel open={varsOpen} onOpenChange={setVarsOpen} context={data.context} target="the state" onInsert={insertVariable} />
+          </Step>
+
+          <section aria-labelledby={`${prefix}-summary`} className="grid gap-2 rounded-lg bg-muted/50 p-4">
+            <h3 id={`${prefix}-summary`} className="text-sm font-semibold">
+              What a press will do
+            </h3>
+            <ol className="grid list-decimal gap-1.5 pl-5 text-sm text-muted-foreground marker:font-medium">
+              {explainAction(draft).map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
           </section>
 
           <div className="flex flex-wrap gap-2">
@@ -615,5 +741,23 @@ export function ActionEditor({
         </form>
       </CardContent>
     </Card>
+  )
+}
+
+/** One numbered stage of the editor: what it's for, then its fields. */
+function Step({ n, title, description, children }: { n: number; title: string; description: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-4 rounded-lg border p-4 sm:p-5">
+      <header className="flex items-start gap-3">
+        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground" aria-hidden="true">
+          {n}
+        </span>
+        <div className="grid gap-0.5">
+          <h3 className="leading-6 font-semibold">{title}</h3>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+      </header>
+      {children}
+    </section>
   )
 }
