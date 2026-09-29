@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { LogOut, Menu, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppFooter } from '@/components/app-footer'
+import { DeviceReadings } from '@/components/device-readings'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { LogoMark } from '@/components/logo'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -133,10 +134,16 @@ export function AppShell({ user }: { user: User }) {
               <NavLinks role={user.role} onNavigate={() => setMenuOpen(false)} />
             </SheetContent>
           </Sheet>
-          <div className="md:hidden">
-            <Brand />
-          </div>
-          <div className="ml-auto flex items-center gap-1">
+          {/* The name lives in the sidebar and the menu; the bar carries the logo and the readings. */}
+          <Link
+            to="/"
+            aria-label="Bedside Dashboard home"
+            className="shrink-0 rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none max-[379px]:hidden md:hidden"
+          >
+            <LogoMark className="size-7" />
+          </Link>
+          <DeviceReadings />
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <ThemeToggle />
             <UserMenu user={user} />
           </div>

@@ -1,8 +1,8 @@
-import { BedDouble, Grid2x2, LayoutDashboard, Palette, Radio, Settings2, ToggleRight, Users, type LucideIcon } from 'lucide-react'
+import { BedDouble, BookOpen, Grid2x2, LayoutDashboard, Palette, Radio, Settings2, ToggleRight, Users, type LucideIcon } from 'lucide-react'
 import type { Role } from '@/lib/auth'
 
 export interface NavItem {
-  to: '/' | '/device' | '/actions' | '/buttons' | '/settings' | '/appearance' | '/users' | '/mqtt'
+  to: '/' | '/device' | '/actions' | '/buttons' | '/settings' | '/appearance' | '/users' | '/mqtt' | '/about'
   label: string
   icon: LucideIcon
   adminOnly?: boolean
@@ -17,6 +17,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/appearance', label: 'Appearance', icon: Palette },
   { to: '/users', label: 'Users', icon: Users, adminOnly: true },
   { to: '/mqtt', label: 'MQTT reference', icon: Radio },
+  { to: '/about', label: 'About', icon: BookOpen },
 ]
 
 export function navFor(role: Role): NavItem[] {

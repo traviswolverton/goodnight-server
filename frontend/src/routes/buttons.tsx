@@ -1,9 +1,9 @@
 import { useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { CheckCheck, Grid2x2, Hand, Loader2, Pencil, ShieldCheck, Timer } from 'lucide-react'
+import { CheckCheck, Loader2, Pencil, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
-import { GuideCard, GuideSection, GuideTerm } from '@/components/guide-card'
+import { AboutLink } from '@/components/about-link'
 import { PageHeader } from '@/components/page-header'
 import { EmptyState, LoadError, LoadingBlocks } from '@/components/query-state'
 import { ReadOnlyNote } from '@/components/read-only-note'
@@ -16,13 +16,11 @@ import { useCanEdit } from '@/hooks/use-can-edit'
 import { useNow } from '@/hooks/use-now'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { api } from '@/lib/api'
+import { BUTTON_LIT_SECONDS } from '@/lib/actions'
 import { toastError } from '@/lib/mutations'
 import { deviceQuery } from '@/lib/queries'
 import type { ButtonBinding, DeviceAction, DeviceResponse, PressKind } from '@/lib/types'
 import { cn } from '@/lib/utils'
-
-/** A tile lights up for this long after its button is pressed. */
-const PRESSED_SECONDS = 10
 
 /** Radix Select can't hold an empty value, so "nothing bound" is this. */
 const UNBOUND = '__none__'
@@ -43,6 +41,7 @@ export function ButtonsPage() {
       <PageHeader
         title="Buttons"
         description="What each of the device's buttons does, for a short press and for a long press."
+        actions={<AboutLink section="buttons" />}
       />
       {!canEdit && <ReadOnlyNote />}
       {isPending ? (
@@ -64,58 +63,11 @@ export function ButtonsPage() {
               .
             </EmptyState>
           )}
-          <ButtonGuide data={data} />
           <ButtonList data={data} canEdit={canEdit} onEdit={setEditing} />
           {editing !== null && <BindingDialog data={data} button={editing} onClose={() => setEditing(null)} />}
         </div>
       )}
     </div>
-  )
-}
-
-/** "How buttons work": open until something is bound, then out of the way. */
-function ButtonGuide({ data }: { data: DeviceResponse }) {
-  return (
-    <GuideCard
-      title="How buttons work"
-      description="Each button runs one action on a short press and another on a long press."
-      icon={Grid2x2}
-      defaultOpen={Object.keys(data.config.buttons).length === 0}
-    >
-      <GuideSection title="Short and long presses">
-        <dl className="grid gap-3 text-sm">
-          <GuideTerm icon={Hand} name="Short press">
-            Let go within 0.6 seconds, like a tap.
-          </GuideTerm>
-          <GuideTerm icon={Timer} name="Long press">
-            Keep holding. The device clicks at 0.6 seconds, and that’s when you can let go.
-          </GuideTerm>
-        </dl>
-        <p className="text-sm text-muted-foreground">
-          Each has its own action, so one button can do two things: a lamp on a tap, the garage on a hold.
-        </p>
-      </GuideSection>
-      <GuideSection title="Finding a button">
-        <p className="text-sm text-muted-foreground">
-          Press it on the device and its row lights up here for {PRESSED_SECONDS} seconds. They’re numbered 1–4 along the top of the
-          device and 5–8 along the bottom.
-        </p>
-      </GuideSection>
-      <GuideSection title="Actions that ask to confirm">
-        <p className="text-sm text-muted-foreground">
-          The first press arms it with one beep. Press the same button the same way again within {data.confirm_seconds} seconds to
-          run it. Anything else cancels it.
-        </p>
-      </GuideSection>
-      {data.ha_discovery && (
-        <GuideSection title="In Home Assistant too">
-          <p className="text-sm text-muted-foreground">
-            Every press also reaches Home Assistant as a device trigger, whether or not anything is bound here, so a button can start
-            an automation directly.
-          </p>
-        </GuideSection>
-      )}
-    </GuideCard>
   )
 }
 
@@ -128,7 +80,7 @@ export function ButtonList({ data, canEdit, onEdit }: { data: DeviceResponse; ca
       {numbers.map((n) => {
         const binding = data.config.buttons[String(n)] ?? {}
         const lastPress = data.presses.find((p) => p.button === n)
-        const pressed = lastPress !== undefined && now - lastPress.at < PRESSED_SECONDS
+        const pressed = lastPress !== undefined && now - lastPress.at < BUTTON_LIT_SECONDS
         const describe = (press: PressKind) => labels[binding[press] ?? '']?.label ?? 'nothing'
         return (
           <li key={n}>

@@ -8,6 +8,11 @@ import type { AuditEntry } from '@/lib/types'
 import { groupByDay } from '@/lib/audit'
 import { UsersPage } from '@/routes/users'
 
+// The page's "How it works" link is a router <Link>; a plain anchor stands in for it here.
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, hash, children }: { to: string; hash?: string; children: React.ReactNode }) => <a href={hash ? `${to}#${hash}` : to}>{children}</a>,
+}))
+
 const user = (over: Partial<User>): User => ({
   id: 1, username: 'travis', email: null, role: 'admin', is_active: true, has_password: true, created_at: '', last_login_at: null, ...over,
 })
@@ -61,13 +66,9 @@ describe('UsersPage', () => {
     expect(screen.getByText('2 accounts, 1 active administrator.')).toBeInTheDocument()
   })
 
-  it('keeps the roles guide closed until asked when there is more than one account', async () => {
-    const ux = userEvent.setup()
+  it('links to its part of the About page', async () => {
     renderPage()
-    const toggle = await screen.findByRole('button', { name: 'Details: Accounts and roles' })
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    await ux.click(toggle)
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(await screen.findByRole('link', { name: /How it works/ })).toHaveAttribute('href', '/about#users')
   })
 
   it('shows the activity log under a heading per day', async () => {

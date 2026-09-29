@@ -26,7 +26,7 @@ await audit('login (light)')
 await t.login(ADMIN.u, ADMIN.p)
 for (const theme of ['light', 'dark']) {
   await setTheme(theme)
-  for (const p of ['/', '/device', '/buttons', '/actions', '/settings', '/appearance', '/users', '/mqtt', '/profile']) {
+  for (const p of ['/', '/device', '/buttons', '/actions', '/settings', '/appearance', '/users', '/mqtt', '/about', '/profile']) {
     await goto(p)
     await page.waitForFunction(() => !document.querySelector('[aria-busy=true]'), { timeout: 8000 }).catch(() => {})
     await audit(`${p} (${theme})`)

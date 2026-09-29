@@ -28,7 +28,7 @@ await t.step('sign-in', async () => {
 
 await t.step('navigation', async () => {
   const nav = await page.$$eval('aside nav a', (a) => a.map((x) => x.textContent.trim()))
-  check('admin sees all eight sections', nav.join(',') === 'Home,Device,Actions,Buttons,Settings,Appearance,Users,MQTT reference', nav.join(','))
+  check('admin sees all nine sections', nav.join(',') === 'Home,Device,Actions,Buttons,Settings,Appearance,Users,MQTT reference,About', nav.join(','))
   check('current section is marked for assistive tech', (await page.$eval('aside nav a[aria-current=page]', (a) => a.textContent.trim()).catch(() => '')) === 'Buttons')
   await goto('/actions')
   check('deep link + refresh keeps the session and route', path() === '/actions' && (await page.$eval('h1', (h) => h.textContent)) === 'Actions')

@@ -17,12 +17,13 @@ export const EXAMPLE_SCRIPT = `script:
           entity_id: light.bedroom`
 
 /** "How actions work": the whole idea on one card that opens and closes. */
-export function ActionGuide({ defaultOpen }: { defaultOpen: boolean }) {
+export function ActionGuide({ defaultOpen = true, id }: { defaultOpen?: boolean; id?: string }) {
   return (
     <GuideCard
       title="How actions work"
       description="A button press, this server, then Home Assistant. Read this once and the rest makes sense."
       defaultOpen={defaultOpen}
+      id={id}
     >
       <GuideSection title="The flow">
         <ol className="grid list-decimal gap-2 pl-5 text-sm marker:font-medium marker:text-muted-foreground">

@@ -17,6 +17,9 @@ export function slugify(label: string, max = 23): string {
   return slug.slice(0, max).replace(/_+$/, '')
 }
 
+/** How long a button's row stays lit on the Buttons page after it's pressed. */
+export const BUTTON_LIT_SECONDS = 10
+
 /** How long an armed action waits for its second press (app/device.py). */
 export const CONFIRM_SECONDS = 5
 

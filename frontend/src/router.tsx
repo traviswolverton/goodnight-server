@@ -111,6 +111,12 @@ const appearanceRoute = createRoute({
   component: lazyRouteComponent(() => import('@/routes/appearance'), 'AppearancePage'),
 })
 
+const aboutRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/about',
+  component: lazyRouteComponent(() => import('@/routes/about'), 'AboutPage'),
+})
+
 const usersRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/users',
@@ -178,6 +184,7 @@ const routeTree = rootRoute.addChildren([
     appearanceRoute,
     usersRoute,
     mqttRoute,
+    aboutRoute,
     profileRoute,
     notFoundRoute,
   ]),

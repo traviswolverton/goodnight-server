@@ -10,8 +10,10 @@ export function GuideCard({
   description,
   icon: Icon = BookOpen,
   defaultOpen,
+  id,
   children,
 }: {
+  id?: string
   title: string
   description: string
   icon?: LucideIcon
@@ -21,7 +23,7 @@ export function GuideCard({
   const [open, setOpen] = useState(defaultOpen)
   const panel = useId()
   return (
-    <Card className="gap-0 overflow-hidden py-0">
+    <Card id={id} className="scroll-mt-20 gap-0 overflow-hidden py-0">
       <CardHeader className="flex items-center gap-3 px-4 py-4 sm:px-6">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
           <Icon className="size-4.5" aria-hidden="true" />

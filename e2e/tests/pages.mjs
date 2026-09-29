@@ -136,7 +136,7 @@ await step('viewer', async () => {
 await step('mobile', async () => {
   await page.setViewport({ width: 390, height: 800, isMobile: true, hasTouch: true })
   await login(ADMIN.u, ADMIN.p)
-  for (const p of ['/', '/device', '/buttons', '/actions', '/settings', '/appearance', '/users', '/mqtt', '/profile']) {
+  for (const p of ['/', '/device', '/buttons', '/actions', '/settings', '/appearance', '/users', '/mqtt', '/about', '/profile']) {
     await goto(p)
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
     check(`mobile: ${p} has no horizontal scroll`, fits, `scrollWidth=${await page.evaluate(() => document.documentElement.scrollWidth)}`)

@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Braces, Check, CheckCheck, ListChecks, Loader2, Pencil, Play, Plus, Radio, ScrollText, ShieldCheck, Trash2, TriangleAlert, Zap, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { ActionGuide, EXAMPLE_SCRIPT } from '@/components/action-guide'
+import { AboutLink } from '@/components/about-link'
+import { EXAMPLE_SCRIPT } from '@/components/action-guide'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Diag } from '@/components/diag'
 import { Reveal } from '@/components/disclosure'
@@ -76,6 +77,7 @@ export function ActionsPage() {
       <PageHeader
         title="Actions"
         description="Things a button on the device can make happen. This server does the work — the device only says which button was pressed."
+        actions={<AboutLink section="actions" />}
       />
       {!canEdit && <ReadOnlyNote />}
       {isPending ? (
@@ -104,9 +106,6 @@ export function ActionsPage() {
               </Alert>
             )
           )}
-
-          {/* Open for a first visit; a closed one-liner once there's something to look at. */}
-          <ActionGuide defaultOpen={data.actions.length === 0} />
 
           <Card>
             <CardHeader>
