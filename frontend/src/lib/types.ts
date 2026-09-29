@@ -283,6 +283,14 @@ export interface ButtonPress {
   ok: boolean | null
   text: string | null
 }
+/** An action as the Buttons page lists it. */
+export interface DeviceAction {
+  id: string
+  label: string
+  confirm: boolean
+  /** Has a check that it really happened. */
+  verify: boolean
+}
 export interface DeviceResponse {
   /** null until the broker has said either way. */
   online: boolean | null
@@ -291,7 +299,7 @@ export interface DeviceResponse {
   sensors_age_seconds: number | null
   presses: ButtonPress[]
   config: DeviceConfig
-  actions: { id: string; label: string }[]
+  actions: DeviceAction[]
   num_buttons: number
   /** How long an armed confirm action waits for its second press. */
   confirm_seconds: number

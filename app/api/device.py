@@ -1,6 +1,6 @@
 """The bedside device (app/device.py): what it last reported, and its
-settings — dimmer thresholds, buzzer and button bindings. The web UI's
-Device page.
+settings — dimmer thresholds and buzzer (the web UI's Device page), and
+button bindings (its Buttons page).
 Reads are open to any signed-in user; saving is admin-only and audited,
 via the router's dependencies in app/api/__init__.py."""
 from __future__ import annotations
@@ -36,7 +36,7 @@ async def get_device() -> dict[str, object]:
         "presses": [p.model_dump() for p in state.presses],
         "config": load_device_config(settings.device_config_path).model_dump(mode="json"),
         # For the binding pickers.
-        "actions": [{"id": a.id, "label": a.label}
+        "actions": [{"id": a.id, "label": a.label, "confirm": a.confirm, "verify": a.verify is not None}
                     for a in load_actions(settings.actions_config_path)],
         "num_buttons": NUM_BUTTONS,
         "confirm_seconds": CONFIRM_SECONDS,
@@ -45,15 +45,17 @@ async def get_device() -> dict[str, object]:
     }
 
 
-@router.put("/device/config")
-async def save_config(request: Request, body: dict) -> dict[str, object]:
+def _validated(body: dict) -> DeviceConfig:
     try:
-        config = DeviceConfig.model_validate(body)
+        return DeviceConfig.model_validate(body)
     except ValidationError as exc:
         first = exc.errors()[0]
         field = ".".join(str(p) for p in first["loc"]) or "config"
         raise HTTPException(status_code=400,
-                            detail=f"{field}: {first['msg'].removeprefix('Value error, ')}")
+                            detail=f"{field}: {first['msg'].removeprefix('Value error, ')}") from None
+
+
+def _check_bindings(config: DeviceConfig) -> None:
     known = {a.id for a in load_actions(settings.actions_config_path)}
     for number, binding in config.buttons.items():
         for press in ("short", "long"):
@@ -61,9 +63,29 @@ async def save_config(request: Request, body: dict) -> dict[str, object]:
             if action_id and action_id not in known:
                 raise HTTPException(status_code=400,
                                     detail=f"button {number} {press}: no action named '{action_id}'")
+
+
+@router.put("/device/config")
+async def save_config(request: Request, body: dict) -> dict[str, object]:
+    """The dimmer and buzzer (and the bindings too, if `buttons` is given;
+    left out, the saved ones are kept — they have their own page)."""
+    current = load_device_config(settings.device_config_path)
+    config = _validated({"buttons": current.model_dump(mode="json")["buttons"], **body})
+    _check_bindings(config)
     save_device_config(settings.device_config_path, config)
     sent = await request.app.state.device_link.publish_config()
     return {"saved": True, "sent_to_device": sent, "config": config.model_dump(mode="json")}
+
+
+@router.put("/device/buttons")
+async def save_buttons(body: dict) -> dict[str, object]:
+    """Only the bindings, keeping the dimmer and buzzer as saved. They never
+    leave the server, so there's nothing to send the device."""
+    current = load_device_config(settings.device_config_path)
+    config = _validated({**current.model_dump(mode="json"), "buttons": body.get("buttons", {})})
+    _check_bindings(config)
+    save_device_config(settings.device_config_path, config)
+    return {"saved": True, "buttons": config.model_dump(mode="json")["buttons"]}
 
 
 @router.post("/device/sound")

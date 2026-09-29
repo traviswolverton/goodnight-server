@@ -370,7 +370,7 @@ def test_api_get_shows_state_config_and_bindable_actions(paths, state):
     data = client.get("/api/device").json()
     assert data["online"] is None and data["sensors"] is None
     assert data["config"]["dimmer"]["bright_lux"] == 20
-    assert data["actions"] == [{"id": "desk_lamp", "label": "Desk lamp"}]
+    assert data["actions"] == [{"id": "desk_lamp", "label": "Desk lamp", "confirm": False, "verify": False}]
     assert data["num_buttons"] == NUM_BUTTONS
     assert data["confirm_seconds"] == 5
     assert data["sounds"] == ["armed", "running", "success", "failure", "cancel"]
@@ -389,6 +389,40 @@ def test_api_save_writes_the_file_and_sends_it_to_the_device(paths, state):
     saved = load_device_config(str(device))
     assert saved.dimmer.bright_lux == 40 and saved.binding(2, "short") == "desk_lamp"
     assert saved.sounds == SoundConfig(volume=60, dark_volume=0)
+
+
+def test_api_config_save_without_buttons_keeps_the_bindings(paths, state):
+    device, actions = paths
+    save_action(str(actions), _lamp())
+    save_device_config(str(device), DeviceConfig(buttons={3: ButtonBinding(long="desk_lamp")}))
+    client, _ = _client(paths)
+    resp = client.put("/api/device/config", json={"sounds": {"enabled": False, "volume": 50, "dark_volume": 5}})
+    assert resp.status_code == 200
+    saved = load_device_config(str(device))
+    assert saved.binding(3, "long") == "desk_lamp" and saved.sounds.enabled is False
+
+
+def test_api_buttons_save_keeps_the_dimmer_and_sounds(paths, state):
+    device, actions = paths
+    save_action(str(actions), _lamp())
+    save_device_config(str(device), DeviceConfig(dimmer=DimmerConfig(bright_lux=50, dark_lux=5),
+                                                 sounds=SoundConfig(volume=30)))
+    client, link = _client(paths)
+    resp = client.put("/api/device/buttons", json={"buttons": {"5": {"short": "desk_lamp", "long": None}}})
+    assert resp.status_code == 200
+    assert resp.json()["buttons"] == {"5": {"short": "desk_lamp", "long": None}}
+    saved = load_device_config(str(device))
+    assert saved.binding(5, "short") == "desk_lamp"
+    assert saved.dimmer.bright_lux == 50 and saved.sounds.volume == 30
+    assert link.published == 0  # bindings never go to the device
+
+
+def test_api_buttons_save_rejects_unknown_actions_and_buttons(paths, state):
+    client, _ = _client(paths)
+    resp = client.put("/api/device/buttons", json={"buttons": {"1": {"short": "nope"}}})
+    assert resp.status_code == 400 and "no action named 'nope'" in resp.json()["detail"]
+    resp = client.put("/api/device/buttons", json={"buttons": {"9": {"short": None}}})
+    assert resp.status_code == 400
 
 
 def test_api_rejects_unknown_actions_and_bad_thresholds(paths, state):

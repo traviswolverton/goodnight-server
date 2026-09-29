@@ -35,7 +35,10 @@ here so far:
 - **Buttons are bound here, not on the device.** `config/device.yaml` maps
   each button's short/long press to an Action id; `MqttDeviceLink` runs it
   through the same `ActionRunner` (and debounce) as the web UI's Run button.
-  An unbound press is still recorded on the Device page.
+  Bindings are edited on the web UI's **Buttons** page: a 2×4 grid laid
+  out like the device (1–4 on the top row), where a tile lights up when
+  its button is pressed, so it's easy to tell which is which. An unbound
+  press is still recorded on the Device page.
 - **Home Assistant via MQTT discovery.** On connect the server publishes,
   retained under `homeassistant/`, three sensors (temperature, humidity,
   illuminance) and a device trigger per button and press length. The

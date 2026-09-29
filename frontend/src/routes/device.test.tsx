@@ -21,7 +21,7 @@ const data: DeviceResponse = {
     sounds: { enabled: true, volume: 80, dark_volume: 10 },
     buttons: { '3': { short: 'lamp' } },
   },
-  actions: [{ id: 'lamp', label: 'Lamp' }],
+  actions: [{ id: 'lamp', label: 'Lamp', confirm: false, verify: false }],
   num_buttons: 8,
   confirm_seconds: 5,
   sounds: ['armed', 'running', 'success', 'failure', 'cancel'],
@@ -62,7 +62,7 @@ describe('screenAt', () => {
 })
 
 describe('SettingsForm', () => {
-  it('saves the dimmer and keeps existing button bindings', async () => {
+  it('saves the dimmer and buzzer, leaving the bindings to the server', async () => {
     const user = userEvent.setup()
     renderForm()
     const bright = screen.getByLabelText('Full brightness at (lux)')
@@ -78,7 +78,6 @@ describe('SettingsForm', () => {
     expect(JSON.parse(init?.body as string)).toEqual({
       dimmer: { bright_lux: 40, dark_lux: 2, dim_contrast: 1, wake_seconds: 15 },
       sounds: { enabled: true, volume: 80, dark_volume: 10 },
-      buttons: { '3': { short: 'lamp' } },
     })
   })
 

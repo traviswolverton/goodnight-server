@@ -4,10 +4,10 @@ MQTT connection that carries both.
 Unlike the rest of this service, which turns homelab data into something
 to show, this module is about the hardware on the nightstand:
 
-- **DeviceConfig** (config/device.yaml, edited on the Device page) — the
-  screen's dimmer thresholds and buzzer volumes, sent to the device
-  retained on `bedside/config`, and which Action (app/actions.py) each of
-  the 8 buttons runs on a short or long press.
+- **DeviceConfig** (config/device.yaml) — the screen's dimmer thresholds
+  and buzzer volumes (the Device page), sent to the device retained on
+  `bedside/config`, and which Action (app/actions.py) each of the 8
+  buttons runs on a short or long press (the Buttons page).
 - **Button feedback** — a press arms a `confirm` action until the same
   press comes again, and each step plays a sound on the device's buzzer
   (`bedside/sound`). See DESIGN.md "Button feedback".

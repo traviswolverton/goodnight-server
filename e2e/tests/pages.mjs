@@ -125,6 +125,20 @@ await step('device', async () => {
   await shot('p1-device')
 })
 
+await step('buttons', async () => {
+  await goto('/buttons')
+  const tiles = await page.$$eval('ul[aria-label=Buttons] button', (b) => b.map((x) => x.getAttribute('aria-label')))
+  check('buttons: eight tiles, 1-4 on the top row', tiles.length === 8 && tiles[0].startsWith('Button 1:') && tiles[4].startsWith('Button 5:'), JSON.stringify(tiles))
+  const tops = await page.$$eval('ul[aria-label=Buttons] li', (li) => li.map((x) => Math.round(x.getBoundingClientRect().top)))
+  check('buttons: laid out as two rows of four', new Set(tops.slice(0, 4)).size === 1 && new Set(tops.slice(4)).size === 1 && tops[4] > tops[0], JSON.stringify(tops))
+  check('buttons: points to Actions when there are none', /No actions to assign yet/.test(await text()))
+  await shot('p1-buttons')
+  await page.locator('button[aria-label^="Button 3:"]').click(); await page.waitForSelector('[role=dialog]'); await sleep(400)
+  check('buttons: a tile opens its editor', /Button 3/.test(await page.$eval('[role=dialog]', (d) => d.textContent)))
+  await shot('p1-buttons-edit')
+  await page.keyboard.press('Escape'); await sleep(300)
+})
+
 await step('adapters', async () => {
   await goto('/adapters')
   check('adapters: existing adapter listed with type + state', /adguard_main/.test(await text()) && /adguard/.test(await text()) && /(Running|Needs restart|Disabled)/.test(await text()))
@@ -215,7 +229,7 @@ await step('viewer', async () => {
 await step('mobile', async () => {
   await page.setViewport({ width: 390, height: 800, isMobile: true, hasTouch: true })
   await login(ADMIN.u, ADMIN.p)
-  for (const p of ['/', '/device', '/cards', '/adapters', '/users', '/mqtt', '/profile']) {
+  for (const p of ['/', '/device', '/buttons', '/cards', '/adapters', '/users', '/mqtt', '/profile']) {
     await goto(p)
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
     check(`mobile: ${p} has no horizontal scroll`, fits, `scrollWidth=${await page.evaluate(() => document.documentElement.scrollWidth)}`)
@@ -224,6 +238,7 @@ await step('mobile', async () => {
   check('mobile: add-adapter dialog fits the screen', await page.$eval('[role=dialog]', (d) => { const b = d.getBoundingClientRect(); return b.left >= 0 && b.right <= window.innerWidth + 1 && b.top >= 0 }))
   await shot('x1-mobile-dialog'); await page.keyboard.press('Escape')
   await goto('/cards'); await shot('x2-mobile-cards')
+  await goto('/buttons'); await shot('x3-mobile-buttons')
 })
 
 await t.finish()

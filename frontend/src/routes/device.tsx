@@ -1,6 +1,5 @@
 import { useId, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { Loader2, Volume2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/page-header'
@@ -12,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useCanEdit } from '@/hooks/use-can-edit'
 import { useNow } from '@/hooks/use-now'
@@ -22,10 +20,7 @@ import { timeAgo } from '@/lib/format'
 import { errorMessage, toastError } from '@/lib/mutations'
 import { screenAt } from '@/lib/device'
 import { deviceQuery } from '@/lib/queries'
-import type { DeviceConfig, DeviceResponse, DimmerConfig, PressKind, SoundConfig, SoundName } from '@/lib/types'
-
-/** Radix Select can't hold an empty value, so "nothing bound" is this. */
-const UNBOUND = '__none__'
+import type { DeviceConfig, DeviceResponse, DimmerConfig, SoundConfig, SoundName } from '@/lib/types'
 
 export function DevicePage() {
   usePageTitle('Device')
@@ -36,7 +31,7 @@ export function DevicePage() {
     <>
       <PageHeader
         title="Device"
-        description="The bedside unit itself: what its sensors read, how its screen follows the room's light, and what its buttons do."
+        description="The bedside unit itself: what its sensors read, how its screen follows the room's light, and its buzzer. What the buttons do is on the Buttons page."
       />
       {!canEdit && <ReadOnlyNote />}
       {isPending ? (
@@ -181,7 +176,6 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
     volume: String(data.config.sounds.volume),
     dark_volume: String(data.config.sounds.dark_volume),
   }))
-  const [buttons, setButtons] = useState(data.config.buttons)
   const [problem, setProblem] = useState<string | null>(null)
 
   const parsed: DimmerConfig = {
@@ -201,7 +195,8 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
   })
 
   const save = useMutation({
-    mutationFn: (config: DeviceConfig) =>
+    // Bindings are left out: the server keeps them (they're the Buttons page's).
+    mutationFn: (config: Omit<DeviceConfig, 'buttons'>) =>
       api<{ sent_to_device: boolean }>('/api/device/config', { method: 'PUT', body: config }),
     onSuccess: (result) => {
       setProblem(null)
@@ -219,16 +214,7 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
     if (parsed.dark_lux > parsed.bright_lux) return setProblem('The screen-off level must not be above the full-brightness level.')
     if (invalidSound) return setProblem(`${invalidSound.label}: enter a whole number from 0 to 100.`)
     setProblem(null)
-    save.mutate({ dimmer: parsed, sounds, buttons })
-  }
-
-  function bind(button: number, press: PressKind, value: string) {
-    setButtons((current) => {
-      const entry = { ...current[String(button)], [press]: value === UNBOUND ? null : value }
-      const next = { ...current, [String(button)]: entry }
-      if (!entry.short && !entry.long) delete next[String(button)]
-      return next
-    })
+    save.mutate({ dimmer: parsed, sounds })
   }
 
   return (
@@ -308,66 +294,6 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
             ))}
           </div>
           {canEdit && <SoundTester sounds={data.sounds} />}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Buttons</CardTitle>
-          <CardDescription>
-            Which action each button runs. A press is short if released within 0.6 s; holding it longer is a long press (the
-            device clicks when you can let go). An action that asks to confirm needs the same press again within{' '}
-            {data.confirm_seconds} s; anything else cancels it.{' '}
-            {data.actions.length === 0 &&
-              (canEdit ? (
-                <>
-                  There are no actions yet — <Link to="/actions" className="underline">add some on the Actions page</Link>.
-                </>
-              ) : (
-                'There are no actions yet.'
-              ))}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th scope="col" className="w-24 pb-2 font-medium">Button</th>
-                <th scope="col" className="pb-2 font-medium">Short press</th>
-                <th scope="col" className="pb-2 pl-2 font-medium">Long press</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: data.num_buttons }, (_, i) => i + 1).map((n) => (
-                <tr key={n}>
-                  <th scope="row" className="py-1 text-left font-medium">
-                    {n}
-                  </th>
-                  {(['short', 'long'] as const).map((press) => (
-                    <td key={press} className={press === 'long' ? 'py-1 pl-2' : 'py-1'}>
-                      <Select
-                        value={buttons[String(n)]?.[press] ?? UNBOUND}
-                        onValueChange={(v) => bind(n, press, v)}
-                        disabled={!canEdit}
-                      >
-                        <SelectTrigger className="w-full" aria-label={`Button ${n} ${press} press`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={UNBOUND}>Nothing</SelectItem>
-                          {data.actions.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>
-                              {a.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </CardContent>
       </Card>
 
