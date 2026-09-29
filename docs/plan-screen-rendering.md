@@ -1,8 +1,8 @@
 # Plan: pixel-exact rendering of the device's screen on the server
 
-**Status**: options written up, NOT decided and NOT implemented. Written up
-2026-09-29 after a planning discussion. Two open questions below need
-answers before any work starts — see "Open questions."
+**Status**: **decided 2026-09-29: option 1, mirror the real framebuffer**
+(see "Decision"). NOT implemented yet. Written up after a planning
+discussion; the owner's answers are recorded below.
 
 Nothing here has been run: the bedside device isn't built yet (no hardware,
 no firmware flashed), so every claim about the panel is from the firmware
@@ -94,36 +94,120 @@ The server composes the whole 512-byte frame and the device blits it
   UI, but it isn't server side, so the server still couldn't check that a
   message fits.
 
-## Recommendation
+## Decision
 
-1. **Option 2 first**, because it needs no hardware and the confirmations
-   are worded by the server. Deliverables: a small renderer module, a fit
-   check (lines and columns) applied where the server words a message, and a
-   scaled, pixel-gridded preview in the web UI.
-2. **Option 1 once the device exists**: a live mirror on the Device page,
-   which doubles as the proof that option 2 matches the real panel.
-3. **Option 3 (or the hybrid)** only if the screen grows richer than text
-   lines: icons, a designed layout, several screens.
+The owner's answers (2026-09-29): the goal is a **live mirror** of the screen,
+*even as icons and other things are added to it*; **firmware changes are
+fine**.
 
-Nothing in 1 and 2 blocks 3 later: the 512-byte frame format is shared.
+That settles it: **option 1**. Because the mirror is the frame the panel
+actually got, anything the firmware draws later (icons, a clock, new
+layouts) shows up in the web UI with no server work, which no option that
+re-implements the drawing (2, or the layout half of 3) can promise.
 
-## Open questions
+- Option 2 is **not needed** for the mirror. It stays on the shelf for one
+  narrower job, checking that a worded confirmation fits 21×3 characters
+  before it's sent; only worth building if that check turns out to matter
+  (the firmware truncating a long line is a simpler answer).
+- Option 3 is **not needed**: the device keeps drawing its own screens.
 
-These were asked and not yet answered; the plan above assumes the
-recommendation and changes if the answers differ.
+## Implementation plan
 
-1. **What is the main goal?** A live mirror (option 1), previewing messages
-   before they're sent (option 2), or designing the layouts themselves
-   (option 3)?
-2. **Are firmware changes acceptable, or server-only for now?** Option 1 and
-   the hybrid need a firmware change; option 2 doesn't.
+Order matters: everything except the last step can be built and tested with
+no hardware, using a synthetic frame.
+
+### Wire format
+
+Topic **`bedside/screen`**, device → server, **retained**, QoS 0. Payload:
+exactly **512 raw bytes**, the U8g2 buffer as sent to the panel (after the
+burn-in drift). Layout (U8g2's native tile buffer for a 128×32 panel, four
+8-pixel pages): byte `page * 128 + x` holds the pixels `(x, page*8 + 0..7)`,
+**bit 0 = the top pixel** of the eight, a set bit = lit. A payload of any
+other length is ignored (that doubles as the version check).
+
+The panel's level (Off / Dim / Full) is not in the frame; it already
+travels as `screen` in `bedside/sensors`, and the UI combines the two.
+
+### Server (this repo)
+
+1. `app/settings.py`: `mqtt_screen_topic = "bedside/screen"`.
+2. `app/device.py`: subscribe to it with the other device topics;
+   `DeviceState` keeps the latest frame and when it arrived; `handle()`
+   stores a 512-byte payload and ignores anything else.
+3. `app/api/device.py`: `GET /api/device/screen` (any signed-in role, like
+   the rest of the Device page) returning
+   `{width: 128, height: 32, frame: <base64> | null, age_seconds: <n> | null}`.
+   Separate from `GET /api/device` so the page can poll just this, every
+   second, without dragging the presses and config along.
+4. Tests: a valid frame is stored, a wrong length is ignored, the endpoint
+   returns it and its age, and returns nulls before any frame.
+5. Docs: DESIGN.md's topic table gets the row; `docs/mqtt-broker.md` and
+   `mosquitto/config/acl.conf` give `bedside-esp32` write and
+   `bedside-aggregator` read on `bedside/screen`. **The shared central broker
+   (192.0.2.25) needs the same two ACL lines added by hand**; this repo's
+   bundled broker is the opt-in local one.
+
+### Web UI
+
+1. `lib/screen.ts`: a pure `frameToPixels(bytes)` (the layout above), with
+   unit tests including the bit order, and a `screenQuery` polling every
+   second while the Device page is visible.
+2. A **Screen** card at the top of the Device page: the frame on a canvas
+   scaled with `image-rendering: pixelated` to the card's width (4:1), black
+   background, lit pixels in a fixed panel colour. An optional pixel grid,
+   remembered per browser like the Appearance choices.
+3. The level: **Full** as is; **Dim** at reduced brightness; **Off** nearly
+   black with "Screen off (dark room)". No frame yet, or the device offline:
+   "Waiting for the first frame" / the last frame dimmed with its age.
+4. The Device guide on the About page gets the screen in its picture.
+
+### Firmware (bedside-dashboard-esp32)
+
+1. After a frame is sent to the panel, note that the buffer may have
+   changed. A small module publishes `bedside/screen` (retained, 512 bytes
+   from `u8g2.getBufferPtr()`) when the buffer differs from the last one
+   published (a CRC or `memcmp`), at most **once a second**, only while MQTT
+   is up, and not while the panel is Off (nothing is lit; the retained frame
+   plus the level says so). The existing 4096-byte MQTT buffer is plenty.
+2. Add the topic to DESIGN.md's MQTT table, and a serial command or boot
+   option that prints the frame as ASCII art: a bench check that the bit
+   layout above matches what's really on the panel.
+
+### Rollout
+
+1. Server, UI and tests with a synthetic frame (a known bitmap published with
+   `mosquitto_pub`, or a test fixture). Nothing needs the device.
+2. Firmware change, ACLs on both brokers, docs.
+3. **Bench, once the device is built:** flash, compare the mirror with the
+   panel (and a photo), and fix the layout if the bit order or orientation
+   is off.
+
+### Details to settle while building
+
+- **Orientation.** If the panel ends up mounted upside down and the firmware
+  compensates with `U8G2_R2`, the buffer is in the panel's physical layout,
+  so the mirror would look rotated compared with what you see. Either the
+  firmware un-rotates the frame it publishes or the UI gets a "rotate 180°"
+  choice; decide when the mounting is known.
+- **Traffic.** At most 512 bytes a second, and only when the screen changes:
+  negligible for the LAN broker. A clock with seconds is the worst case.
+- **Retained message churn.** Every publish rewrites the broker's retained
+  copy; fine at this rate, but worth a second look if it ever drives disk
+  writes on the broker.
+- **A PNG endpoint** (for a Home Assistant image entity or a notification)
+  would need Pillow, which isn't a dependency today. Not in scope; the
+  browser draws the canvas itself.
 
 ## Things to verify before building
 
-- The BDF for `u8g2_font_6x10_tf` (and any later font) exists in U8g2's
-  source, and its glyphs match the compiled font byte for byte.
-- U8g2's text placement rule for a baseline y (it takes the glyph's own
-  bounding-box offsets), by rendering a known string on the server and
-  comparing with a photo or the mirror once a device exists.
-- The confirmation wording's length limit against the 21-column grid, and
-  what the firmware does with an over-long line (truncate, wrap, or clip).
+- The buffer layout in "Wire format": that `u8g2.getBufferPtr()` for the
+  128×32 full-buffer driver is 512 bytes in that page/bit order, and that
+  `sendBuffer()` sends it unchanged (no rotation or post-processing between
+  the buffer and the panel). The firmware's ASCII dump exists to check this
+  on the bench.
+- That a 512-byte retained binary `publish` works through PubSubClient with
+  the existing 4096-byte buffer, and that the broker's ACL lets the device
+  write the new topic (the ACL silently drops a forbidden write, so it looks
+  like nothing arrived).
+- What the firmware does today with a line longer than 21 columns, if the
+  fit check (option 2, on the shelf) is ever wanted.

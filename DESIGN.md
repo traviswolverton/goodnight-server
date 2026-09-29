@@ -466,8 +466,8 @@ the ESP32 client needs to reach both from elsewhere on the network.
   Status-change alerts (notify the moment something changes, not on a
   schedule) were discussed too and sketched as a later Phase 2 in the same
   doc, once the digest's ntfy-sending machinery exists to build on.
-- Pixel-exact rendering of the device's 128×32 OLED on the server (to check
-  that worded confirmations fit, and to show the screen in the web UI) —
-  see `docs/plan-screen-rendering.md`. Options written up 2026-09-29, not
-  decided or implemented; two open questions in that doc (the main goal, and
-  whether firmware changes are acceptable).
+- Live mirror of the device's 128×32 OLED in the web UI: the device
+  publishes its real framebuffer on `bedside/screen` and the Device page
+  draws it, so icons and layouts added later just appear — see
+  `docs/plan-screen-rendering.md`. Decided 2026-09-29, not yet implemented;
+  the server and UI parts can be built and tested before the device exists.
