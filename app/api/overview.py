@@ -9,7 +9,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request
 
-from app import actions as actions_module
 from app import aggregator as aggregator_module
 from app.models import CameraAlert
 from app.api.deps import status_reason
@@ -99,8 +98,5 @@ async def mqtt_reference(request: Request) -> dict[str, object]:
             "line_max_chars": list(aggregator_module.CLIENT_LINE_MAX_CHARS),
             "overall_text_max_chars": aggregator_module.CLIENT_OVERALL_TEXT_MAX_CHARS,
             "max_services": aggregator_module.CLIENT_MAX_SERVICES,
-            "max_actions": actions_module.MAX_ACTIONS,
-            "action_label_max_chars": actions_module.LABEL_MAX,
-            "action_state_max_chars": actions_module.STATE_MAX,
         },
     }

@@ -9,7 +9,6 @@ from pydantic import ValidationError
 
 from app.actions import (
     LABEL_MAX,
-    MAX_ACTIONS,
     STATE_MAX,
     ActionConfig,
     ActionConfigError,
@@ -43,7 +42,7 @@ async def list_actions(request: Request) -> dict[str, object]:
         "adapters": [{"name": a.name, "type": a.type_name, "kinds": list(a.action_kinds)}
                      for a in aggregator.adapters if a.action_kinds],
         "context": context,
-        "limits": {"max_actions": MAX_ACTIONS, "label_max": LABEL_MAX, "state_max": STATE_MAX},
+        "limits": {"label_max": LABEL_MAX, "state_max": STATE_MAX},
     }
 
 

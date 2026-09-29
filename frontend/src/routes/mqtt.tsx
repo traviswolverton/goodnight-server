@@ -19,7 +19,6 @@ const FIELD_NOTES: [string, string][] = [
   ['name', 'Stable identifier, matching cards.yaml. Never changes and is never used for display.'],
   ['title', 'Display text for the card’s title row. Falls back to name if the card has no title override.'],
   ['lines', '1–4 pre-formatted display strings, shown verbatim. Falls back to the title if the card has no text template.'],
-  ['actions', 'The display’s Actions menu, in order: id, label, an optional live state (“on”, “21.5°”), and whether to ask for a second press first. What an action does stays on the server.'],
 ]
 
 export function MqttPage() {
@@ -147,9 +146,6 @@ export function MqttPage() {
                     ['services[*].lines[]', `${data.limits.line_max_chars.join(' / ')} characters, by position`],
                     ['overall.text', `${data.limits.overall_text_max_chars} characters`],
                     ['services[] (array)', `${data.limits.max_services} entries — anything beyond is dropped, not truncated`],
-                    ['actions[*].label', `${data.limits.action_label_max_chars} characters`],
-                    ['actions[*].state', `${data.limits.action_state_max_chars} characters (cut to fit by the server)`],
-                    ['actions[] (array)', `${data.limits.max_actions} entries`],
                   ] as const
                 ).map(([field, limit]) => (
                   <div key={field} className="flex flex-wrap justify-between gap-x-4 border-b pb-2 last:border-0">

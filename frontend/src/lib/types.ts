@@ -184,9 +184,6 @@ export interface MqttReference {
     line_max_chars: number[]
     overall_text_max_chars: number
     max_services: number
-    max_actions: number
-    action_label_max_chars: number
-    action_state_max_chars: number
   }
 }
 
@@ -230,7 +227,7 @@ export interface ActionsResponse {
   /** Running adapters that can perform actions. */
   adapters: { name: string; type: string; kinds: ActionKind[] }[]
   context: Context
-  limits: { max_actions: number; label_max: number; state_max: number }
+  limits: { label_max: number; state_max: number }
 }
 export interface ActionOutcome {
   ok: boolean

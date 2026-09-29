@@ -45,7 +45,7 @@ export function ActionsPage() {
   const remove = useMutation({
     mutationFn: (id: string) => api(`/api/actions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     onSuccess: () => {
-      toast.success('Removed — gone from the display on the next poll.')
+      toast.success('Removed.')
       refresh()
     },
     onError: (e) => toastError(e, 'Remove failed'),
@@ -55,7 +55,7 @@ export function ActionsPage() {
     <>
       <PageHeader
         title="Actions"
-        description="What the display's Actions menu can do: turn the knob to pick one, press to run it. This server does the work — the display only sends which one."
+        description="Things a button on the device can make happen. This server does the work — the device only says which button was pressed."
       />
       {!canEdit && <ReadOnlyNote />}
       {isPending ? (
@@ -71,13 +71,14 @@ export function ActionsPage() {
           )}
           <Card>
             <CardHeader>
-              <CardTitle>On the display</CardTitle>
+              <CardTitle>Your actions</CardTitle>
               <CardDescription>
-                In menu order, {data.actions.length} of {data.limits.max_actions}. The state beside each label is live.
+                Bind them to buttons on the <Link to="/buttons" className="underline">Buttons page</Link>. The state beside each
+                label is live.
               </CardDescription>
               {canEdit && data.adapters.length > 0 && (
                 <CardAction>
-                  <Button size="sm" onClick={() => setEditing('new')} disabled={data.actions.length >= data.limits.max_actions}>
+                  <Button size="sm" onClick={() => setEditing('new')}>
                     <Plus aria-hidden="true" /> Add action
                   </Button>
                 </CardAction>
@@ -85,7 +86,7 @@ export function ActionsPage() {
             </CardHeader>
             <CardContent>
               {data.actions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No actions yet — the display&rsquo;s Actions menu says so too.</p>
+                <p className="text-sm text-muted-foreground">No actions yet.</p>
               ) : (
                 <ul className="divide-y" aria-label="Actions">
                   {data.actions.map((action) => (
@@ -124,7 +125,7 @@ export function ActionsPage() {
         title={`Remove “${removing?.label}”?`}
         destructive
         confirmLabel="Remove action"
-        description="It disappears from the display's Actions menu on the next poll."
+        description="A button still bound to it will fail (and beep) until you rebind it on the Buttons page."
         onConfirm={() => {
           if (removing) remove.mutate(removing.id)
           setRemoving(null)
@@ -283,7 +284,7 @@ export function ActionEditor({
         : api('/api/actions', { method: 'POST', body })
     },
     onSuccess: () => {
-      toast.success('Saved — on the display from the next poll.')
+      toast.success('Saved.')
       onDone()
     },
     onError: (e) => toastError(e, 'Save failed'),

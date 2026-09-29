@@ -50,9 +50,16 @@ here so far:
 - **Sensors in templates.** The `bedside_device` adapter reads the latest
   report: `{{ adapters.<name>.temperature_c }}`, `temperature_f`,
   `humidity`, `lux`, `screen`, `online`, `last_report_seconds`.
-- **Not yet adapted:** the status payload, Cards limits, the camera alert and the Actions menu are
-  still the desk unit's. The next step is a small-screen payload (3 lines
-  of 21 characters on a 128×32 OLED) and trimming what doesn't apply.
+- **Not yet adapted:** the status payload, Cards limits and the camera
+  alert are still the desk unit's. The next step is a small-screen payload
+  (3 lines of 21 characters on a 128×32 OLED) and trimming what doesn't
+  apply.
+- **No Actions menu.** The desk unit lists actions on screen to scroll
+  through; a screen this size won't. The bedside screen is a resting
+  readout (clock, light, temperature, humidity) plus brief confirmations
+  of what a button press did, alongside its sounds. Actions are reached
+  through buttons only, bound server-side, so the status payload carries
+  no action list (removed 2026-09-29).
 
 ## Architecture: adapter pattern
 Each integration is a small class implementing one method:
@@ -172,11 +179,13 @@ login can do nothing else there (`docs/mqtt-broker.md`). The bundled
 broker remains as the `local-mqtt` compose profile.
 
 ## Actions (two-way: the display asks, the server acts)
-Added 2026-09-26 with the Home Assistant adapter. The display's MENU gets
-an **Actions** item listing `actions[]` from the status payload; turning
-the encoder picks one and pressing sends its `id` on `bedside/action`.
-This server looks the id up in `config/actions.yaml`, performs it, and
-replies on `bedside/action/result`.
+Added 2026-09-26 with the Home Assistant adapter, from the desk unit,
+whose MENU listed the actions (then sent in the status payload) and sent
+the chosen `id` on `bedside/action`, answered on `bedside/action/result`.
+On the bedside, actions are run by **buttons** bound on the Buttons page
+(see "Button feedback"), and the payload carries no list; the
+`bedside/action` request/reply path is still served but has no bedside
+caller.
 
 **Architecture, and why:** device → broker → this server → Home
 Assistant's REST API. The more HA-native options were considered and
@@ -211,8 +220,9 @@ run: saves apply without a restart.
 `home_assistant`. The web UI's Run button goes through the same
 `ActionRunner` as the display, so the debounce covers both.
 
-**Limits (the display's buffers):** 12 actions, 23-byte id and label,
-11-byte state (cut server-side at a character boundary).
+**Limits:** any number of actions. 23-byte id and label, and an 11-byte
+state (cut at a character boundary) — sized for the desk menu, kept for
+on-screen confirmations. The state is shown on the web UI's Actions page.
 
 ### Button feedback: confirm, verify, sounds
 Added 2026-09-28. A physical button bound to an Action gets audible
@@ -425,10 +435,6 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
         "24h uptime avg: 99.6%"
       ]
     }
-  ],
-  "actions": [
-    {"id": "desk_lamp", "label": "Desk lamp", "state": "on", "confirm": false},
-    {"id": "garage", "label": "Garage door", "state": "closed", "confirm": true}
   ]
 }
 ```
@@ -471,12 +477,6 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
   `i`, each row has its own length limit, and an empty line is sent as
   `""` rather than dropped (see "Client display limits"). Over-long lines
   aren't rejected — the editor flags them and the client cuts them off.
-- `actions` (added 2026-09-26): the display's Actions menu, in order —
-  see "Actions" below. `state` is short live text shown beside the label
-  (`null` for none), cut server-side to fit; `confirm` means ask for a
-  second press before sending. Nothing about what an action *does* is
-  here. Always present (`[]` when none are configured); a client that
-  predates it just ignores the key.
 - `ts` is unix seconds.
 
 ### `bedside/alert/camera`
@@ -499,7 +499,7 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
 ```json
 {"id": "desk_lamp", "req": 17}
 ```
-- `id` is one of the `actions[].id` values from the latest status payload.
+- `id` is an action id from `config/actions.yaml`.
 - `req` is the display's own counter, echoed back in the result so a
   reply can be matched to the press that caused it.
 - QoS 0 from the device, not retained. The server runs only actions
@@ -514,8 +514,7 @@ Published on any adapter state change and as a ~30-60s heartbeat regardless.
   for the display: `Done`, `Failed`, `Too soon` (the same action pressed
   again within a second — debounced), `No adapter`, `Unknown action`.
 - A successful action also triggers a poll a second later, so the new
-  state (`actions[].state`, and any card showing the same entity) reaches
-  the display without waiting out the poll interval.
+  state (any card showing the same entity) reaches the display without waiting out the poll interval.
 
 ## Card icons (inside line text)
 The ESP32 has a 146-icon set (Material Design Icons 7.4.47, 24px — sized

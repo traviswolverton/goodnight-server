@@ -13,7 +13,7 @@ const data: ActionsResponse = {
   actions: [],
   adapters: [{ name: 'home', type: 'home_assistant', kinds: ['service', 'script', 'event'] }],
   context: { adapters: {} },
-  limits: { max_actions: 12, label_max: 23, state_max: 11 },
+  limits: { label_max: 23, state_max: 11 },
 }
 
 const fetchMock = vi.fn<typeof fetch>()

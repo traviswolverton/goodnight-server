@@ -30,16 +30,13 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 from ruamel.yaml import YAML
 
-from app.models import ActionItem
-
 logger = logging.getLogger(__name__)
 
 ActionKind = Literal["service", "script", "event"]
 
-#: The display's own limits (desk-dashboard-esp32 status_payload.h) — the
-#: web UI and the save path enforce these rather than letting a label be
-#: silently cut short on the device.
-MAX_ACTIONS = 12
+#: The display's own limits (bedside-dashboard-esp32 status_payload.h) —
+#: the web UI and the save path enforce these rather than letting a label
+#: be silently cut short on the device.
 ID_MAX = 23
 LABEL_MAX = 23
 STATE_MAX = 11
@@ -209,8 +206,6 @@ def save_action(config_path: str, action: ActionConfig, replace_id: str | None =
     if any(e.get("id") == action.id for i, e in enumerate(entries) if i != existing):
         raise ActionConfigError(f"an action named '{action.id}' already exists")
     if existing is None:
-        if len(entries) >= MAX_ACTIONS:
-            raise ActionConfigError(f"the display holds at most {MAX_ACTIONS} actions")
         entries.append(_entry(action))
     else:
         entries[existing] = _entry(action)
@@ -234,17 +229,6 @@ def fit_state(text: str | None) -> str | None:
         return None
     encoded = text.encode("utf-8")[:STATE_MAX]
     return encoded.decode("utf-8", errors="ignore") or None
-
-
-def build_action_items(actions: list[ActionConfig], render) -> list[ActionItem]:
-    """The `actions` array of the status payload. `render(template)` returns
-    the rendered text or None (app.aggregator supplies it, against the same
-    context as cards)."""
-    return [
-        ActionItem(id=a.id, label=a.label, confirm=a.confirm,
-                   state=fit_state(render(a.state_template)) if a.state_template else None)
-        for a in actions[:MAX_ACTIONS]
-    ]
 
 
 class ActionOutcome(BaseModel):

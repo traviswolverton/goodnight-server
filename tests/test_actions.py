@@ -10,7 +10,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.actions import (
-    MAX_ACTIONS,
     ActionConfig,
     ActionConfigError,
     ActionRunner,
@@ -89,11 +88,10 @@ def test_save_refuses_a_duplicate_id(actions_path):
         save_action(str(actions_path), _lamp())
 
 
-def test_save_refuses_more_than_the_display_holds(actions_path):
-    for i in range(MAX_ACTIONS):
+def test_any_number_can_be_saved(actions_path):
+    for i in range(20):
         save_action(str(actions_path), _lamp(id=f"a{i}"))
-    with pytest.raises(ActionConfigError, match="at most"):
-        save_action(str(actions_path), _lamp(id="one_more"))
+    assert len(load_actions(str(actions_path))) == 20
 
 
 def test_delete(actions_path):
@@ -119,22 +117,12 @@ def test_one_bad_entry_does_not_cost_the_rest(actions_path):
 
 # --- the status payload ----------------------------------------------------
 
-async def test_payload_lists_actions_with_their_rendered_state(actions_path):
-    save_action(str(actions_path), _lamp(confirm=True))
-    save_action(str(actions_path), _lamp(id="broken", label="Broken", state_template="{{ nope.x }}"))
+async def test_the_payload_carries_no_actions(actions_path):
+    """Buttons are bound server-side and the device has no menu, so it never
+    needs the list."""
+    save_action(str(actions_path), _lamp())
     agg = Aggregator(adapters=[SwitchAdapter()], publisher=None, client=None)
-    payload = await agg.poll_once()
-    assert [a.model_dump() for a in payload.actions] == [
-        {"id": "desk_lamp", "label": "Desk lamp", "state": "off", "confirm": True},
-        {"id": "broken", "label": "Broken", "state": None, "confirm": False},
-    ]
-
-
-async def test_a_long_state_is_cut_to_fit_the_display(actions_path):
-    save_action(str(actions_path), _lamp(state_template="{{ 'é' * 20 }}"))
-    agg = Aggregator(adapters=[SwitchAdapter()], publisher=None, client=None)
-    state = (await agg.poll_once()).actions[0].state
-    assert len(state.encode()) <= 11 and state == "é" * 5  # never half a character
+    assert "actions" not in (await agg.poll_once()).model_dump()
 
 
 # --- the runner ------------------------------------------------------------
@@ -224,7 +212,6 @@ def test_api_create_list_update_delete(actions_path):
     assert data["actions"][0]["id"] == "desk_lamp"
     assert data["actions"][0]["resolved_state"] == "on"
     assert data["adapters"] == [{"name": "home", "type": "switch", "kinds": ["service"]}]
-    assert data["limits"]["max_actions"] == MAX_ACTIONS
 
     assert client.put("/api/actions/desk_lamp", json={**body, "label": "Lamp"}).status_code == 200
     assert client.get("/api/actions").json()["actions"][0]["label"] == "Lamp"
