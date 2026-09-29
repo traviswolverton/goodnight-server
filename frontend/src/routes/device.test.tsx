@@ -140,11 +140,11 @@ describe('SettingsForm', () => {
   it('marks where the room is now among the screen levels, as typed', async () => {
     const user = userEvent.setup()
     renderForm()
-    expect(screen.getByText('the room is here now').closest('li')).toHaveTextContent('Dimmed')
+    expect(screen.getByText('room now').closest('li')).toHaveTextContent('Dimmed')
     const dark = screen.getByLabelText('Screen off below (lux)')
     await user.clear(dark)
     await user.type(dark, '9')
-    expect(screen.getByText('the room is here now').closest('li')).toHaveTextContent('Off')
+    expect(screen.getByText('room now').closest('li')).toHaveTextContent('Off')
   })
 
   it('keeps each setting’s explanation behind its (i)', async () => {

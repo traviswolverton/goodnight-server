@@ -1,9 +1,10 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Activity, BedDouble, Loader2, MousePointerClick, Sun, Volume2, Wifi } from 'lucide-react'
+import { Activity, BedDouble, Droplets, Hand, Hourglass, House, Loader2, Monitor, MousePointerClick, Moon, Save, Server, SlidersHorizontal, Sun, SunDim, Thermometer, Unplug, Volume2, Wifi, WifiOff, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Collapse, InfoToggle } from '@/components/disclosure'
-import { GuideCard, GuideSection, GuideTerm } from '@/components/guide-card'
+import { ButtonsGraphic, FlowArrow, FlowChip, FlowNode, FlowPanel } from '@/components/flow'
+import { GuideCard, GuideSection } from '@/components/guide-card'
 import { PageHeader } from '@/components/page-header'
 import { LoadError, LoadingBlocks } from '@/components/query-state'
 import { ReadOnlyNote } from '@/components/read-only-note'
@@ -36,7 +37,7 @@ export function DevicePage() {
     <div className="max-w-3xl">
       <PageHeader
         title="Device"
-        description="The bedside unit itself: what its sensors read, how its screen follows the room's light, and its buzzer. What the buttons do is on the Buttons page."
+        description="Readings, screen brightness and the buzzer. What the buttons do is on the Buttons page."
       />
       {!canEdit && <ReadOnlyNote />}
       {isPending ? (
@@ -61,42 +62,94 @@ function DeviceGuide({ defaultOpen }: { defaultOpen: boolean }) {
   return (
     <GuideCard
       title="About the device"
-      description="A small screen, buttons and a buzzer by the bed, and sensors for the room."
+      description="A screen, buttons, a buzzer and room sensors, by the bed."
       icon={BedDouble}
       defaultOpen={defaultOpen}
     >
-      <GuideSection title="How it works">
-        <ol className="grid list-decimal gap-2 pl-5 text-sm marker:font-medium marker:text-muted-foreground">
-          <li>
-            <strong>It reports.</strong> Temperature, humidity and light, every so often, and every button press, over MQTT through your
-            broker.
-          </li>
-          <li>
-            <strong>This server decides.</strong> It works out what a press does and sends the device its settings and sounds. The
-            device doesn’t know what any button does; that’s the Buttons page.
-          </li>
-          <li>
-            <strong>Saving here reaches it straight away.</strong> If it’s switched off, it picks the settings up when it reconnects.
-          </li>
-        </ol>
-      </GuideSection>
+      <div className="grid gap-3">
+        <FlowPanel
+          n={1}
+          title="It reports"
+          summary="The device sends its temperature, humidity and light readings, and every button press, to this server over MQTT."
+        >
+          <div className="flex w-full flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
+            <div className="grid gap-2 rounded-lg border bg-card p-3">
+              <span className="flex items-center gap-1.5 text-xs font-semibold">
+                <BedDouble className="size-4" /> Device
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                <FlowChip icon={Thermometer} label="Temp" />
+                <FlowChip icon={Droplets} label="Humidity" />
+                <FlowChip icon={Sun} label="Light" />
+                <FlowChip icon={Hand} label="Presses" />
+              </div>
+            </div>
+            <FlowArrow label="MQTT" downOnPhone />
+            <FlowNode icon={Server} label="Server" accent />
+          </div>
+        </FlowPanel>
+
+        <FlowPanel
+          n={2}
+          title="The server decides"
+          summary="This server works out what a button press does and tells Home Assistant. It sends the device its settings and sounds."
+          caption="The device only says which button. The Buttons page says what it does."
+        >
+          <ButtonsGraphic label="Press" />
+          <FlowArrow />
+          <FlowNode icon={Server} label="Decides" accent />
+          <FlowArrow />
+          <FlowNode icon={House} label="Home Assistant" />
+          <div className="flex basis-full items-center gap-2 text-xs text-muted-foreground">
+            <Server className="size-4" /> <FlowArrow />
+            <FlowChip icon={Volume2} label="Sounds" />
+            <FlowChip icon={SlidersHorizontal} label="Settings" />
+            <FlowArrow /> <BedDouble className="size-4" />
+          </div>
+        </FlowPanel>
+
+        <FlowPanel
+          n={3}
+          title="Saving reaches it now"
+          summary="Saving a setting on this page sends it to the device straight away. If the device is off, it gets the settings when it reconnects."
+          caption="If it’s off, it catches up when it reconnects."
+        >
+          <FlowChip icon={Save} label="Save" />
+          <FlowArrow />
+          <FlowNode icon={BedDouble} label="Device" accent />
+        </FlowPanel>
+      </div>
+
       <GuideSection title="What the status means">
-        <dl className="grid gap-3 text-sm">
-          <GuideTerm icon={Wifi} name="Online">
-            It’s connected to the broker and reporting.
-          </GuideTerm>
-          <GuideTerm icon={Wifi} name="Offline">
-            It was there and has dropped off. Check its power and Wi-Fi.
-          </GuideTerm>
-          <GuideTerm icon={Wifi} name="Not heard from yet">
-            Nothing has arrived since this server started. A device that’s still being set up looks like this.
-          </GuideTerm>
-          <GuideTerm icon={Wifi} name="Server not connected to the broker">
-            This server can’t reach the broker, so it can’t hear the device either. Fix the broker on the Settings page first.
-          </GuideTerm>
+        <dl className="grid gap-2.5 text-sm">
+          <StatusTerm icon={Wifi} tone="text-success" name="Online">
+            Connected and reporting.
+          </StatusTerm>
+          <StatusTerm icon={WifiOff} tone="text-destructive" name="Offline">
+            Dropped off. Check its power and Wi-Fi.
+          </StatusTerm>
+          <StatusTerm icon={Hourglass} tone="text-muted-foreground" name="Not heard from yet">
+            Nothing since the server started, as while it’s being set up.
+          </StatusTerm>
+          <StatusTerm icon={Unplug} tone="text-warning" name="Server not connected to the broker">
+            The server can’t reach the broker. Fix it in Settings.
+          </StatusTerm>
         </dl>
       </GuideSection>
     </GuideCard>
+  )
+}
+
+/** A status: its own icon (a different shape each, never colour alone), its name, one line. */
+function StatusTerm({ icon: Icon, tone, name, children }: { icon: LucideIcon; tone: string; name: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-3 gap-y-0.5">
+      <dt className="col-span-2 flex items-center gap-3 font-medium">
+        <Icon className={cn('size-5 shrink-0', tone)} aria-hidden="true" />
+        {name}
+      </dt>
+      <dd className="col-start-2 text-muted-foreground">{children}</dd>
+    </div>
   )
 }
 
@@ -127,20 +180,22 @@ function ReadingsCard({ data }: { data: DeviceResponse }) {
     >
       <CardContent className="px-4 py-4 sm:px-6">
         <dl className="grid grid-cols-2 gap-3">
-          <Reading label="Temperature" value={fmt(s?.temperature_c, ' °C', 1)} extra={tempF !== null ? fmt(tempF, ' °F', 1) : null} />
-          <Reading label="Humidity" value={fmt(s?.humidity, '%')} />
-          <Reading label="Light" value={fmt(s?.lux, ' lx', 1)} />
-          <Reading label="Screen" value={s?.screen ? SCREEN_LABEL[s.screen] : '—'} />
+          <Reading icon={Thermometer} label="Temperature" value={fmt(s?.temperature_c, ' °C', 1)} extra={tempF !== null ? fmt(tempF, ' °F', 1) : null} />
+          <Reading icon={Droplets} label="Humidity" value={fmt(s?.humidity, '%')} />
+          <Reading icon={Sun} label="Light" value={fmt(s?.lux, ' lx', 1)} />
+          <Reading icon={Monitor} label="Screen" value={s?.screen ? SCREEN_LABEL[s.screen] : '—'} />
         </dl>
       </CardContent>
     </SectionCard>
   )
 }
 
-function Reading({ label, value, extra }: { label: string; value: string; extra?: string | null }) {
+function Reading({ icon: Icon, label, value, extra }: { icon: LucideIcon; label: string; value: string; extra?: string | null }) {
   return (
     <div className="grid gap-0.5 rounded-lg bg-muted/50 px-4 py-3">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Icon className="size-3.5" aria-hidden="true" /> {label}
+      </dt>
       <dd className="text-lg font-semibold tabular-nums">{value}</dd>
       {extra && <dd className="text-xs text-muted-foreground tabular-nums">{extra}</dd>}
     </div>
@@ -154,16 +209,11 @@ function PressesCard({ data }: { data: DeviceResponse }) {
     <SectionCard
       icon={MousePointerClick}
       title="Recent button presses"
-      description={
-        <>
-          Newest first, since the server started.
-          {data.ha_discovery && ' Every press also reaches Home Assistant as a device trigger, bound here or not.'}
-        </>
-      }
+      description={data.ha_discovery ? 'Newest first. Home Assistant sees them too.' : 'Newest first, since the server started.'}
     >
       {data.presses.length === 0 ? (
         <CardContent className="px-4 py-4 sm:px-6">
-          <p className="text-sm text-muted-foreground">No presses yet. Press a button on the device and it shows up here.</p>
+          <p className="text-sm text-muted-foreground">No presses yet.</p>
         </CardContent>
       ) : (
         <ul className="divide-y text-sm" aria-label="Recent button presses">
@@ -297,7 +347,7 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
       <SectionCard
         icon={Sun}
         title="Screen brightness"
-        description="The device follows the room’s light. The press that wakes a dark screen does nothing else, so reaching over to check the time can’t switch anything."
+        description="Follows the room’s light. The press that wakes a dark screen does nothing else."
       >
         <div className="divide-y">
           {DIMMER_FIELDS.map((f) => (
@@ -323,7 +373,7 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
       <SectionCard
         icon={Volume2}
         title="Buzzer"
-        description="Beeps for button presses: armed, sending, done or failed. A failure always plays at full volume, even in the dark, so a door that didn’t close gets heard."
+        description="Beeps for button presses. A failure is always loud, even at night."
       >
         <div className="divide-y">
           <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
@@ -375,39 +425,43 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
   )
 }
 
-/** The three screen levels, from the numbers as typed, with the room's current one marked. */
+/** The three screen levels as a row of tiles, from the numbers as typed, with the room's current one lit. */
 function ScreenLevels({ dimmer, valid, current, lux }: { dimmer: DimmerConfig; valid: boolean; current: string | null; lux: number | null | undefined }) {
-  const levels = [
-    { key: 'full brightness', name: 'Full brightness', when: valid ? `${dimmer.bright_lux} lx and above` : 'Bright room' },
-    {
-      key: 'dimmed',
-      name: 'Dimmed',
-      when: valid ? `${dimmer.dark_lux} to ${dimmer.bright_lux} lx, at brightness ${dimmer.dim_contrast}` : 'In between',
-    },
-    {
-      key: 'off until a button is pressed',
-      name: 'Off',
-      when: valid ? `below ${dimmer.dark_lux} lx. A press wakes it dimmed for ${dimmer.wake_seconds} s` : 'Dark room',
-    },
+  const levels: { key: string; name: string; icon: LucideIcon; range: string }[] = [
+    { key: 'off until a button is pressed', name: 'Off', icon: Moon, range: valid ? `below ${dimmer.dark_lux} lx` : 'dark' },
+    { key: 'dimmed', name: 'Dimmed', icon: SunDim, range: valid ? `${dimmer.dark_lux}–${dimmer.bright_lux} lx` : 'between' },
+    { key: 'full brightness', name: 'Full', icon: Sun, range: valid ? `${dimmer.bright_lux}+ lx` : 'bright' },
   ]
   return (
     <div className="grid gap-3 px-4 py-4 sm:px-6">
       <h3 className="text-sm font-semibold">How the screen decides</h3>
-      <ul className="grid gap-2 text-sm">
-        {levels.map((level) => {
-          const here = valid && current === level.key
+      <ul className="grid grid-cols-3 gap-2">
+        {levels.map(({ key, name, icon: Icon, range }) => {
+          const here = valid && current === key
           return (
-            <li key={level.key} className={cn('flex flex-wrap items-baseline gap-x-3 rounded-lg px-3 py-2', here ? 'bg-accent text-accent-foreground' : 'bg-muted/40')}>
-              <span className="w-32 shrink-0 font-medium">{level.name}</span>
-              <span className={here ? '' : 'text-muted-foreground'}>{level.when}</span>
-              {here && <span className="ml-auto text-xs font-medium">the room is here now</span>}
+            <li
+              key={key}
+              className={cn(
+                'grid justify-items-center gap-1 rounded-lg border px-2 py-3 text-center',
+                here ? 'border-primary/50 bg-accent text-accent-foreground' : 'bg-muted/40 text-muted-foreground',
+              )}
+            >
+              <Icon className="size-6" aria-hidden="true" />
+              <span className={cn('text-sm font-medium', here && 'text-foreground')}>{name}</span>
+              <span className="text-xs tabular-nums">{range}</span>
+              {here && <span className="text-[11px] font-semibold text-primary">room now</span>}
             </li>
           )
         })}
       </ul>
-      {current && valid && (
-        <p className="text-sm text-muted-foreground" aria-live="polite">
-          At the room&rsquo;s current {lux?.toFixed(1)} lx, the screen would be <strong>{current}</strong>.
+      {valid && (
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {current && (
+            <>
+              Room is {lux?.toFixed(1)} lx, so the screen would be <strong>{current}</strong>.{' '}
+            </>
+          )}
+          A press wakes an off screen for {dimmer.wake_seconds} s.
         </p>
       )}
     </div>
@@ -424,14 +478,14 @@ function SoundTester({ sounds }: { sounds: SoundName[] }) {
     <div className="grid gap-3 px-4 py-4 sm:px-6">
       <div className="grid gap-1">
         <h3 className="text-sm font-semibold">Try the sounds</h3>
-        <p className="text-sm text-muted-foreground">Plays on the device at the saved settings. Save first to hear a change.</p>
+        <p className="text-xs text-muted-foreground">Plays at the saved settings. Save first to hear a change.</p>
       </div>
       <ul className="grid gap-2">
         {sounds.map((sound) => (
-          <li key={sound} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-muted/40 px-3 py-2">
-            <div className="grid min-w-0 flex-1 basis-56 gap-0.5 text-sm">
+          <li key={sound} className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2">
+            <div className="grid min-w-0 flex-1 text-sm">
               <span className="font-medium">{SOUND_INFO[sound].name}</span>
-              <span className="text-xs text-muted-foreground">{SOUND_INFO[sound].when}</span>
+              <span className="text-xs text-muted-foreground">{SOUND_INFO[sound].short}</span>
             </div>
             <Button
               type="button"
