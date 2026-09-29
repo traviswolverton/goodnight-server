@@ -1,17 +1,40 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ThemeContext, type Theme, type ThemeContextValue } from '@/hooks/use-theme'
+import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  ACCENTS,
+  DEFAULT_ACCENT,
+  DEFAULT_RADIUS,
+  RADII,
+  ThemeContext,
+  type Accent,
+  type Radius,
+  type Theme,
+  type ThemeContextValue,
+} from '@/hooks/use-theme'
 
-const STORAGE_KEY = 'dd-theme'
+const THEME_KEY = 'dd-theme'
+const ACCENT_KEY = 'dd-accent'
+const RADIUS_KEY = 'dd-radius'
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
-function readStoredTheme(): Theme {
+/** A stored choice, if it's still one we offer; otherwise the default.
+ *  Storage can be blocked (private mode, site data cleared): defaults then. */
+function read<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+    const stored = localStorage.getItem(key)
+    if (stored && (allowed as readonly string[]).includes(stored)) return stored as T
   } catch {
-    // Storage can be blocked (private mode, site data cleared): fall back to the system theme.
+    // Fall through to the default.
   }
-  return 'system'
+  return fallback
+}
+
+function write(key: string, value: string | null) {
+  try {
+    if (value === null) localStorage.removeItem(key)
+    else localStorage.setItem(key, value)
+  } catch {
+    // Not persisted; still applies for this visit.
+  }
 }
 
 function systemPrefersDark(): boolean {
@@ -19,7 +42,11 @@ function systemPrefersDark(): boolean {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(readStoredTheme)
+  const [theme, setThemeState] = useState<Theme>(() => read<Theme>(THEME_KEY, ['light', 'dark', 'system'], 'system'))
+  const [accent, setAccentState] = useState<Accent>(() =>
+    read(ACCENT_KEY, ACCENTS.map((a) => a.id), DEFAULT_ACCENT),
+  )
+  const [radius, setRadiusState] = useState<Radius>(() => read(RADIUS_KEY, RADII.map((r) => r.id), DEFAULT_RADIUS))
   const [systemDark, setSystemDark] = useState(systemPrefersDark)
 
   useEffect(() => {
@@ -36,20 +63,40 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle('dark', resolvedTheme === 'dark')
   }, [resolvedTheme])
 
+  // Before paint, so a stored accent never flashes the default one.
+  useLayoutEffect(() => {
+    document.documentElement.dataset.accent = accent
+    document.documentElement.dataset.radius = radius
+  }, [accent, radius])
+
   const value = useMemo<ThemeContextValue>(
     () => ({
       theme,
       resolvedTheme,
       setTheme: (next) => {
         setThemeState(next)
-        try {
-          localStorage.setItem(STORAGE_KEY, next)
-        } catch {
-          // Not persisted; still applies for this visit.
-        }
+        write(THEME_KEY, next)
+      },
+      accent,
+      setAccent: (next) => {
+        setAccentState(next)
+        write(ACCENT_KEY, next)
+      },
+      radius,
+      setRadius: (next) => {
+        setRadiusState(next)
+        write(RADIUS_KEY, next)
+      },
+      reset: () => {
+        setThemeState('system')
+        setAccentState(DEFAULT_ACCENT)
+        setRadiusState(DEFAULT_RADIUS)
+        write(THEME_KEY, null)
+        write(ACCENT_KEY, null)
+        write(RADIUS_KEY, null)
       },
     }),
-    [theme, resolvedTheme],
+    [theme, resolvedTheme, accent, radius],
   )
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

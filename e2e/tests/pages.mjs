@@ -109,7 +109,7 @@ await signOut()
 await step('viewer', async () => {
   await login(VIEWER.u, VIEWER.p)
   const nav = await page.$$eval('aside nav a', (a) => a.map((x) => x.textContent.trim()))
-  check('viewer: nav hides Settings and Users', !nav.includes('Settings') && !nav.includes('Users') && nav.includes('Buttons'), nav.join(','))
+  check('viewer: nav hides Settings and Users', !nav.includes('Settings') && !nav.includes('Users') && nav.includes('Buttons') && nav.includes('Appearance'), nav.join(','))
   await goto('/settings'); check('viewer: /settings redirects home', path() === '/', path())
   await goto('/users'); check('viewer: /users redirects home', path() === '/', path())
   await goto('/buttons')
@@ -136,7 +136,7 @@ await step('viewer', async () => {
 await step('mobile', async () => {
   await page.setViewport({ width: 390, height: 800, isMobile: true, hasTouch: true })
   await login(ADMIN.u, ADMIN.p)
-  for (const p of ['/', '/device', '/buttons', '/actions', '/settings', '/users', '/mqtt', '/profile']) {
+  for (const p of ['/', '/device', '/buttons', '/actions', '/settings', '/appearance', '/users', '/mqtt', '/profile']) {
     await goto(p)
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
     check(`mobile: ${p} has no horizontal scroll`, fits, `scrollWidth=${await page.evaluate(() => document.documentElement.scrollWidth)}`)

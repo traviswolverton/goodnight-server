@@ -3,28 +3,39 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Design tokens (shadcn conventions). Brand green matches the desk display's
-   "ok" colour; primary is a touch darker so white text on it stays >= 4.5:1. */
+/* Design tokens (shadcn conventions). The accent is one hue + chroma pair
+   (default: light blue) that primary, the highlight and the focus ring are all
+   derived from, for both modes; the Appearance page swaps the pair through
+   html[data-accent]. Lightness is fixed per mode so white (light) / dark
+   (dark) text on primary stays >= 4.5:1 for every accent. `success` stays
+   green: it means "ok", not "brand". `.light` lets a preview re-apply the
+   light tokens inside a dark page. */
 :root {
+  --accent-hue: 235;
+  --accent-chroma: 0.13;
   --radius: 0.625rem;
+}
+
+:root,
+.light {
   --background: oklch(0.975 0.003 250);
   --foreground: oklch(0.21 0.015 260);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.21 0.015 260);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.015 260);
-  --primary: oklch(0.52 0.115 165);
+  --primary: oklch(0.55 var(--accent-chroma) var(--accent-hue));
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.955 0.005 250);
   --secondary-foreground: oklch(0.28 0.015 260);
   --muted: oklch(0.955 0.005 250);
   --muted-foreground: oklch(0.46 0.015 260);
-  --accent: oklch(0.945 0.02 165);
-  --accent-foreground: oklch(0.32 0.07 165);
+  --accent: oklch(0.945 0.03 var(--accent-hue));
+  --accent-foreground: oklch(0.32 0.08 var(--accent-hue));
   --destructive: oklch(0.55 0.2 27);
   --border: oklch(0.915 0.006 250);
   --input: oklch(0.9 0.008 250);
-  --ring: oklch(0.6 0.12 165);
+  --ring: oklch(0.62 var(--accent-chroma) var(--accent-hue));
   --success: oklch(0.6 0.13 160);
   --warning: oklch(0.68 0.14 75);
 }
@@ -36,21 +47,32 @@
   --card-foreground: oklch(0.95 0.005 250);
   --popover: oklch(0.23 0.012 260);
   --popover-foreground: oklch(0.95 0.005 250);
-  --primary: oklch(0.72 0.14 165);
-  --primary-foreground: oklch(0.18 0.03 165);
+  --primary: oklch(0.75 var(--accent-chroma) var(--accent-hue));
+  --primary-foreground: oklch(0.18 0.03 var(--accent-hue));
   --secondary: oklch(0.27 0.012 260);
   --secondary-foreground: oklch(0.95 0.005 250);
   --muted: oklch(0.27 0.012 260);
   --muted-foreground: oklch(0.7 0.012 260);
-  --accent: oklch(0.3 0.04 165);
-  --accent-foreground: oklch(0.92 0.04 165);
+  --accent: oklch(0.3 0.045 var(--accent-hue));
+  --accent-foreground: oklch(0.92 0.04 var(--accent-hue));
   --destructive: oklch(0.7 0.19 22);
   --border: oklch(1 0 0 / 11%);
   --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.65 0.13 165);
+  --ring: oklch(0.68 var(--accent-chroma) var(--accent-hue));
   --success: oklch(0.72 0.14 160);
   --warning: oklch(0.78 0.14 80);
 }
+
+/* Accent choices (Appearance page). Sky is the default set on :root. */
+[data-accent='indigo'] { --accent-hue: 272; --accent-chroma: 0.16; }
+[data-accent='violet'] { --accent-hue: 305; --accent-chroma: 0.16; }
+[data-accent='rose'] { --accent-hue: 5; --accent-chroma: 0.17; }
+[data-accent='teal'] { --accent-hue: 195; --accent-chroma: 0.1; }
+[data-accent='green'] { --accent-hue: 165; --accent-chroma: 0.115; }
+
+/* Corner choices. */
+[data-radius='sharp'] { --radius: 0.25rem; }
+[data-radius='round'] { --radius: 1rem; }
 
 @theme inline {
   --color-background: var(--background);
