@@ -15,6 +15,7 @@ const LABELS: Record<string, string> = {
   'api.save_status': 'Saved a card’s status',
   'api.save_title': 'Saved a card’s title',
   'api.save_render': 'Showed or hid a card',
+  'api.play_sound': 'Played a test sound on the device',
   'api.save_pixel_color': 'Saved a pixel’s colour',
   'api.add_adapter_endpoint': 'Added an adapter',
   'api.update_adapter_endpoint': 'Edited an adapter',

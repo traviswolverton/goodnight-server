@@ -26,10 +26,11 @@ here so far:
 
 | Topic | Direction | Retained | |
 |---|---|---|---|
-| `bedside/config` | server → device | yes | dimmer thresholds, from `config/device.yaml` |
+| `bedside/config` | server → device | yes | dimmer thresholds and buzzer volumes, from `config/device.yaml` |
 | `bedside/sensors` | device → server | yes | `{"temperature_c", "humidity", "lux", "screen"}` every 30s |
 | `bedside/button` | device → server | no | `{"button": 1-8, "press": "short"\|"long"}` |
 | `bedside/availability` | device → server | yes | `online` / `offline` (last will) |
+| `bedside/sound` | server → device | no | `{"sound": "armed"\|"running"\|"success"\|"failure"\|"cancel", "urgent": bool}` — see "Button feedback" |
 
 - **Buttons are bound here, not on the device.** `config/device.yaml` maps
   each button's short/long press to an Action id; `MqttDeviceLink` runs it
@@ -209,6 +210,68 @@ run: saves apply without a restart.
 
 **Limits (the display's buffers):** 12 actions, 23-byte id and label,
 11-byte state (cut server-side at a character boundary).
+
+### Button feedback: confirm, verify, sounds
+Added 2026-09-28. A physical button bound to an Action gets audible
+feedback from a passive piezo on the device, a second press for anything
+marked `confirm`, and a check that the action really happened — not just
+that Home Assistant accepted the call. The motivating case: one button
+that makes sure the garage doors are closed, with no way to trigger it by
+brushing the button in the dark and a clear "it didn't work" if a door
+jams.
+
+**Who decides what: the server.** The device only plays a named sound when
+told to (`bedside/sound`), the same dumb-client split as everything else.
+The one exception is the long-press tick below, which is feedback on the
+button itself, not on an action.
+
+**The sounds** (patterns live in the firmware; the names are the contract):
+
+| Sound | When | Pattern |
+|---|---|---|
+| `tick` | a hold passes 0.6 s and becomes a long press (device-local) | one very short click |
+| `armed` (beep 1) | first press of a `confirm` action: press again to run it | one mid beep |
+| `running` (beep 2) | the action is being sent to Home Assistant | two quick rising beeps |
+| `success` (beep 3) | it's done — verified, if the action has a check | three rising notes |
+| `failure` (beep 4) | it failed, timed out, or the check never passed | low falling buzz |
+| `cancel` | an armed action timed out or was cancelled | one soft blip |
+
+**Confirm (server-side, `app/device.py`):** press a button bound to a
+`confirm: true` action and it's *armed* for 5 seconds (`armed`). The
+confirming press must be the **same button and the same press length** —
+arm with a long press, confirm with a long press — so a quick tap meant
+for a lamp on the same button can never confirm the garage. Anything else
+while armed (another button, the other press length) cancels it
+(`cancel`) and is otherwise ignored; so does the window running out. Only
+one action is armed at a time. A press bound to an action *without*
+`confirm` runs straight away: `running`, then `success`/`failure`.
+
+**Verify (`ActionConfig.verify`):** an optional check —
+```yaml
+verify:
+  entities: [cover.garage_left, cover.garage_right]
+  state: closed      # every entity must reach this state
+  timeout: 45        # seconds after the call
+```
+Before calling Home Assistant, the runner reads those entities: if they
+already pass, it skips the call and reports success ("make sure it's
+closed", not "close it"). Otherwise it makes the call, then polls just
+those entities (`GET /api/states/<id>`, once a second — the adapter's
+normal poll is far too slow) until they all pass → `success`, or the
+timeout / an entity going `unavailable` → `failure`. Without `verify`,
+success means Home Assistant accepted the call, as before. The web UI's
+Run button goes through the same runner, so it waits for the check too.
+
+**Quiet in the dark, except failures.** `config/device.yaml` has
+`sounds: {enabled, volume, dark_volume}` (Device page), sent on
+`bedside/config`. When the room is below the dimmer's `dark_lux`, the
+device plays at `dark_volume` — except a message marked `urgent`, which
+always plays at `volume`. The server marks `failure` urgent: a garage
+that didn't close has to be heard even at 3 a.m. (A piezo's loudness is
+set by PWM duty, so "volume" is coarse — fine for this.)
+
+**Hardware:** passive piezo on GPIO 25, driven by the ESP32's LEDC PWM
+(see the device repo's DESIGN.md).
 
 ## AI-assisted template generation (app/ai_assist.py)
 Added 2026-09-19: an "AI prompt" box next to each of the two template

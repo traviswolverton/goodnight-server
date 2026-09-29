@@ -5,9 +5,12 @@ Unlike the rest of this service, which turns homelab data into something
 to show, this module is about the hardware on the nightstand:
 
 - **DeviceConfig** (config/device.yaml, edited on the Device page) — the
-  screen's dimmer thresholds, sent to the device retained on
-  `bedside/config`, and which Action (app/actions.py) each of the 8
-  buttons runs on a short or long press.
+  screen's dimmer thresholds and buzzer volumes, sent to the device
+  retained on `bedside/config`, and which Action (app/actions.py) each of
+  the 8 buttons runs on a short or long press.
+- **Button feedback** — a press arms a `confirm` action until the same
+  press comes again, and each step plays a sound on the device's buzzer
+  (`bedside/sound`). See DESIGN.md "Button feedback".
 - **DeviceState** — the latest `bedside/sensors` reading, whether the
   device is online (`bedside/availability`, its MQTT last will), and the
   last few button presses. In memory only: the device re-sends all of it
@@ -37,6 +40,7 @@ import aiomqtt
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
+from app.actions import get_action
 from app.mqtt import CONNECT_TIMEOUT_SECONDS
 from app.settings import settings
 
@@ -44,6 +48,10 @@ logger = logging.getLogger(__name__)
 
 NUM_BUTTONS = 8
 PressKind = Literal["short", "long"]
+SoundName = Literal["armed", "running", "success", "failure", "cancel"]
+
+#: How long an armed `confirm` action waits for its second press.
+CONFIRM_SECONDS = 5.0
 
 
 # ---- Config --------------------------------------------------------------
@@ -69,6 +77,18 @@ class DimmerConfig(BaseModel):
         return self
 
 
+class SoundConfig(BaseModel):
+    """The buzzer. Mirrors the firmware's SoundSettings (bedside-dashboard-
+    esp32 include/sound.h). Volumes are 0-100; a piezo's loudness comes from
+    PWM duty, so they're coarse steps rather than a smooth dial."""
+
+    enabled: bool = True
+    volume: int = Field(80, ge=0, le=100)
+    dark_volume: int = Field(10, ge=0, le=100)
+    """Used while the room is below the dimmer's dark_lux — except for
+    urgent sounds (a failure), which always play at `volume`."""
+
+
 class ButtonBinding(BaseModel):
     """The Action ids a button runs. None = the press does nothing here
     (it's still recorded, and still reaches Home Assistant)."""
@@ -79,6 +99,7 @@ class ButtonBinding(BaseModel):
 
 class DeviceConfig(BaseModel):
     dimmer: DimmerConfig = Field(default_factory=DimmerConfig)
+    sounds: SoundConfig = Field(default_factory=SoundConfig)
     buttons: dict[int, ButtonBinding] = Field(default_factory=dict)
 
     @field_validator("buttons")
@@ -119,9 +140,15 @@ def save_device_config(config_path: str, config: DeviceConfig) -> None:
 
 
 def device_config_payload(config: DeviceConfig) -> str:
-    """What the device gets on `bedside/config`: only the dimmer. Button
-    bindings never leave the server."""
-    return json.dumps({"dimmer": config.dimmer.model_dump()})
+    """What the device gets on `bedside/config`: the dimmer and the
+    buzzer. Button bindings never leave the server."""
+    return json.dumps({"dimmer": config.dimmer.model_dump(), "sounds": config.sounds.model_dump()})
+
+
+def sound_payload(sound: SoundName) -> str:
+    """One `bedside/sound` message. A failure is urgent: it plays at full
+    volume even in the dark, so a door that didn't close is heard."""
+    return json.dumps({"sound": sound, "urgent": sound == "failure"})
 
 
 # ---- State -----------------------------------------------------------------
@@ -151,8 +178,8 @@ class ButtonPress(BaseModel):
     action: str | None = None
     ok: bool | None = None
     text: str | None = None
-    """The action's outcome ("Done", "Failed"...), None while it runs or
-    when nothing is bound."""
+    """The action's outcome ("Done", "Failed", "Armed", "Cancelled"...),
+    None while it runs or when nothing is bound."""
 
 
 #: How many recent presses the Device page shows.
@@ -248,6 +275,7 @@ class MqttDeviceLink:
         self.config_path = config_path
         self._client: aiomqtt.Client | None = None
         self._tasks: set[asyncio.Task] = set()
+        self._armed: _Armed | None = None
 
     async def run_forever(self) -> None:
         last_error: str | None = None
@@ -329,14 +357,77 @@ class MqttDeviceLink:
                 return
             await self._on_press(message)
 
+    async def publish_sound(self, sound: SoundName) -> bool:
+        """Tell the device to play `sound`. Not retained — a beep that
+        arrives late is worse than none. False when it couldn't be sent;
+        never raises."""
+        client = self._client
+        if client is None:
+            return False
+        try:
+            await client.publish(settings.mqtt_sound_topic, sound_payload(sound), qos=1)
+        except aiomqtt.MqttError as exc:
+            logger.warning("couldn't send sound %r: %s", sound, exc)
+            return False
+        return True
+
     async def _on_press(self, message: ButtonPressMessage) -> None:
         action_id = load_device_config(self.config_path).binding(message.button, message.press)
         press = ButtonPress(button=message.button, press=message.press, at=time.time(),
                             action=action_id)
         self.state.presses.appendleft(press)
+
+        # Everything up to the first await runs in one go, so two presses
+        # handled as separate tasks can't both see the same armed action.
+        armed = self._armed
+        if armed is not None:
+            self._armed = None
+            armed.timer.cancel()
+            if (armed.button, armed.press) == (message.button, message.press):
+                press.action = armed.action_id
+                await self._run(press, armed.action_id)
+            else:
+                # Anything else while armed cancels it, and does nothing more.
+                logger.info("button %d %s press cancelled armed action %r",
+                            message.button, message.press, armed.action_id)
+                press.ok, press.text = False, "Cancelled"
+                await self.publish_sound("cancel")
+            return
+
         if action_id is None:
             logger.info("button %d %s press: nothing bound", message.button, message.press)
             return
-        outcome = await self.runner.run(action_id, source=f"button {message.button}")
+        action = get_action(self.runner.config_path, action_id)
+        if action is not None and action.confirm:
+            self._armed = _Armed(message.button, message.press, action_id,
+                                 asyncio.create_task(self._disarm_later()))
+            press.text = "Armed"
+            logger.info("button %d %s press armed %r: press again within %ss to run it",
+                        message.button, message.press, action_id, CONFIRM_SECONDS)
+            await self.publish_sound("armed")
+            return
+        await self._run(press, action_id)
+
+    async def _run(self, press: ButtonPress, action_id: str) -> None:
+        await self.publish_sound("running")
+        outcome = await self.runner.run(action_id, source=f"button {press.button}")
         press.ok = outcome.ok
         press.text = outcome.text
+        await self.publish_sound("success" if outcome.ok else "failure")
+
+    async def _disarm_later(self) -> None:
+        await asyncio.sleep(CONFIRM_SECONDS)
+        armed, self._armed = self._armed, None
+        if armed is not None:
+            logger.info("armed action %r timed out", armed.action_id)
+            await self.publish_sound("cancel")
+
+
+class _Armed:
+    """A `confirm` action waiting for its second press."""
+
+    def __init__(self, button: int, press: PressKind, action_id: str, timer: asyncio.Task) -> None:
+        self.button = button
+        self.press = press
+        self.action_id = action_id
+        self.timer = timer

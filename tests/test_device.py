@@ -1,8 +1,9 @@
 """The bedside device (app/device.py): device.yaml, what the device reports,
-button presses running their bound Actions, Home Assistant discovery, the
-bedside_device adapter, and the API."""
+button presses running their bound Actions (with confirm and sounds), Home
+Assistant discovery, the bedside_device adapter, and the API."""
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 
@@ -21,6 +22,7 @@ from app.device import (
     DeviceState,
     DimmerConfig,
     MqttDeviceLink,
+    SoundConfig,
     device_config_payload,
     ha_discovery_messages,
     load_device_config,
@@ -89,10 +91,17 @@ def test_buttons_outside_1_to_8_are_rejected(button):
         DeviceConfig(buttons={button: ButtonBinding(short="x")})
 
 
-def test_the_device_only_gets_the_dimmer():
+def test_the_device_gets_the_dimmer_and_sounds_never_the_bindings():
     config = DeviceConfig(buttons={1: ButtonBinding(short="desk_lamp")})
     assert json.loads(device_config_payload(config)) == {
-        "dimmer": {"bright_lux": 20.0, "dark_lux": 2.0, "dim_contrast": 1, "wake_seconds": 15}}
+        "dimmer": {"bright_lux": 20.0, "dark_lux": 2.0, "dim_contrast": 1, "wake_seconds": 15},
+        "sounds": {"enabled": True, "volume": 80, "dark_volume": 10}}
+
+
+@pytest.mark.parametrize("sounds", [{"volume": 101}, {"dark_volume": -1}])
+def test_invalid_sound_settings_are_rejected(sounds):
+    with pytest.raises(ValueError):
+        SoundConfig(**sounds)
 
 
 # --- what the device reports ------------------------------------------------------
@@ -169,6 +178,110 @@ async def test_publish_config_without_a_connection_says_so(paths, state):
     assert await _link(paths, state).publish_config() is False
 
 
+# --- button feedback: confirm and sounds -----------------------------------------
+
+class _FakeMqtt:
+    """Stands in for the link's aiomqtt client, recording what it sends."""
+
+    def __init__(self) -> None:
+        self.sent: list[tuple[str, str]] = []
+
+    async def publish(self, topic, payload, qos=0, retain=False):
+        self.sent.append((topic, payload))
+
+    def sounds(self) -> list[str]:
+        return [json.loads(p)["sound"] for t, p in self.sent if t == settings.mqtt_sound_topic]
+
+
+def _connected_link(paths, state, adapter=None):
+    link = _link(paths, state, adapter)
+    link._client = _FakeMqtt()
+    return link, link._client
+
+
+async def _press(link, button, press="short"):
+    await link.handle(settings.mqtt_button_topic, json.dumps({"button": button, "press": press}).encode())
+
+
+def _bind(paths, binding, **action):
+    device, actions = paths
+    save_action(str(actions), _lamp(**action))
+    save_device_config(str(device), DeviceConfig(buttons={3: binding}))
+
+
+async def test_a_plain_action_plays_running_then_success(paths, state):
+    _bind(paths, ButtonBinding(short="desk_lamp"))
+    link, mqtt = _connected_link(paths, state)
+    await _press(link, 3)
+    assert mqtt.sounds() == ["running", "success"]
+
+
+async def test_a_failure_is_urgent_so_it_plays_loud_in_the_dark(paths, state):
+    _bind(paths, ButtonBinding(short="desk_lamp"))
+    link, mqtt = _connected_link(paths, state, SwitchAdapter(fail=True))
+    await _press(link, 3)
+    assert [json.loads(p) for _, p in mqtt.sent] == [
+        {"sound": "running", "urgent": False}, {"sound": "failure", "urgent": True}]
+
+
+async def test_a_confirm_action_needs_the_same_press_twice(paths, state):
+    _bind(paths, ButtonBinding(long="desk_lamp"), confirm=True)
+    adapter = SwitchAdapter()
+    link, mqtt = _connected_link(paths, state, adapter)
+
+    await _press(link, 3, "long")
+    assert adapter.runs == [] and mqtt.sounds() == ["armed"]
+    assert state.presses[0].text == "Armed"
+
+    await _press(link, 3, "long")
+    assert adapter.runs == ["desk_lamp"]
+    assert mqtt.sounds() == ["armed", "running", "success"]
+    assert (state.presses[0].ok, state.presses[0].text) == (True, "Done")
+
+
+@pytest.mark.parametrize("second", [(3, "short"), (4, "long")])
+async def test_anything_else_while_armed_cancels_and_does_nothing_more(paths, state, second):
+    device, actions = paths
+    save_action(str(actions), _lamp(confirm=True))
+    save_action(str(actions), _lamp(id="hall_lamp", label="Hall lamp"))
+    save_device_config(str(device), DeviceConfig(buttons={
+        3: ButtonBinding(short="hall_lamp", long="desk_lamp"), 4: ButtonBinding(long="hall_lamp")}))
+    adapter = SwitchAdapter()
+    link, mqtt = _connected_link(paths, state, adapter)
+
+    await _press(link, 3, "long")
+    await _press(link, *second)
+    assert adapter.runs == []  # neither the armed action nor the second press's own
+    assert mqtt.sounds() == ["armed", "cancel"]
+    assert state.presses[0].text == "Cancelled"
+
+    await _press(link, 3, "long")  # starts over: arms again
+    assert mqtt.sounds() == ["armed", "cancel", "armed"]
+
+
+async def test_an_armed_action_times_out_with_a_blip(paths, state, monkeypatch):
+    monkeypatch.setattr("app.device.CONFIRM_SECONDS", 0.05)
+    _bind(paths, ButtonBinding(short="desk_lamp"), confirm=True)
+    adapter = SwitchAdapter()
+    link, mqtt = _connected_link(paths, state, adapter)
+
+    await _press(link, 3)
+    await asyncio.sleep(0.2)
+    assert mqtt.sounds() == ["armed", "cancel"]
+
+    await _press(link, 3)  # the window closed: this arms again rather than running
+    assert adapter.runs == [] and mqtt.sounds() == ["armed", "cancel", "armed"]
+
+
+async def test_sounds_without_a_connection_are_dropped_quietly(paths, state):
+    _bind(paths, ButtonBinding(short="desk_lamp"))
+    adapter = SwitchAdapter()
+    link = _link(paths, state, adapter)
+    await _press(link, 3)
+    assert adapter.runs == ["desk_lamp"]
+    assert await link.publish_sound("success") is False
+
+
 # --- Home Assistant discovery ----------------------------------------------------
 
 def test_discovery_announces_three_sensors_and_a_trigger_per_press():
@@ -229,10 +342,17 @@ async def test_adapter_warns_on_a_stale_report(paths, state):
 class _FakeLink:
     def __init__(self) -> None:
         self.published = 0
+        self.sounds: list[str] = []
+        self.connected = True
 
     async def publish_config(self) -> bool:
         self.published += 1
         return True
+
+    async def publish_sound(self, sound) -> bool:
+        if self.connected:
+            self.sounds.append(sound)
+        return self.connected
 
 
 def _client(paths):
@@ -252,6 +372,8 @@ def test_api_get_shows_state_config_and_bindable_actions(paths, state):
     assert data["config"]["dimmer"]["bright_lux"] == 20
     assert data["actions"] == [{"id": "desk_lamp", "label": "Desk lamp"}]
     assert data["num_buttons"] == NUM_BUTTONS
+    assert data["confirm_seconds"] == 5
+    assert data["sounds"] == ["armed", "running", "success", "failure", "cancel"]
 
 
 def test_api_save_writes_the_file_and_sends_it_to_the_device(paths, state):
@@ -259,12 +381,14 @@ def test_api_save_writes_the_file_and_sends_it_to_the_device(paths, state):
     save_action(str(actions), _lamp())
     client, link = _client(paths)
     body = {"dimmer": {"bright_lux": 40, "dark_lux": 4, "dim_contrast": 10, "wake_seconds": 30},
+            "sounds": {"enabled": True, "volume": 60, "dark_volume": 0},
             "buttons": {"2": {"short": "desk_lamp"}}}
     resp = client.put("/api/device/config", json=body)
     assert resp.status_code == 200 and resp.json()["sent_to_device"] is True
     assert link.published == 1
     saved = load_device_config(str(device))
     assert saved.dimmer.bright_lux == 40 and saved.binding(2, "short") == "desk_lamp"
+    assert saved.sounds == SoundConfig(volume=60, dark_volume=0)
 
 
 def test_api_rejects_unknown_actions_and_bad_thresholds(paths, state):
@@ -274,3 +398,13 @@ def test_api_rejects_unknown_actions_and_bad_thresholds(paths, state):
     resp = client.put("/api/device/config", json={"dimmer": {"bright_lux": 1, "dark_lux": 5}})
     assert resp.status_code == 400 and "dark_lux" in resp.json()["detail"]
     assert link.published == 0
+
+
+def test_api_plays_a_test_sound(paths, state):
+    client, link = _client(paths)
+    assert client.post("/api/device/sound", json={"sound": "failure"}).json() == {"sent": True}
+    assert link.sounds == ["failure"]
+    resp = client.post("/api/device/sound", json={"sound": "fanfare"})
+    assert resp.status_code == 400 and link.sounds == ["failure"]
+    link.connected = False
+    assert client.post("/api/device/sound", json={"sound": "armed"}).status_code == 503

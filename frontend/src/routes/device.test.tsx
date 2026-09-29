@@ -18,10 +18,13 @@ const data: DeviceResponse = {
   presses: [],
   config: {
     dimmer: { bright_lux: 20, dark_lux: 2, dim_contrast: 1, wake_seconds: 15 },
+    sounds: { enabled: true, volume: 80, dark_volume: 10 },
     buttons: { '3': { short: 'lamp' } },
   },
   actions: [{ id: 'lamp', label: 'Lamp' }],
   num_buttons: 8,
+  confirm_seconds: 5,
+  sounds: ['armed', 'running', 'success', 'failure', 'cancel'],
   ha_discovery: true,
 }
 
@@ -74,8 +77,41 @@ describe('SettingsForm', () => {
     expect(init?.method).toBe('PUT')
     expect(JSON.parse(init?.body as string)).toEqual({
       dimmer: { bright_lux: 40, dark_lux: 2, dim_contrast: 1, wake_seconds: 15 },
+      sounds: { enabled: true, volume: 80, dark_volume: 10 },
       buttons: { '3': { short: 'lamp' } },
     })
+  })
+
+  it('saves the buzzer volumes', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    const dark = screen.getByLabelText('Volume in the dark (0–100)')
+    await user.clear(dark)
+    await user.type(dark, '0')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string).sounds).toEqual({ enabled: true, volume: 80, dark_volume: 0 })
+  })
+
+  it('refuses a volume outside 0-100 without calling the server', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    const volume = screen.getByLabelText('Volume (0–100)')
+    await user.clear(volume)
+    await user.type(volume, '150')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Volume (0–100): enter a whole number from 0 to 100.')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('plays a test sound on the device', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    await user.click(screen.getByRole('button', { name: 'Play the failed sound' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/device/sound')
+    expect(JSON.parse(init?.body as string)).toEqual({ sound: 'failure' })
   })
 
   it('refuses a dark level above the bright one without calling the server', async () => {
@@ -92,6 +128,8 @@ describe('SettingsForm', () => {
   it('is read-only for viewers', () => {
     renderForm(false)
     expect(screen.getByLabelText('Full brightness at (lux)')).toBeDisabled()
+    expect(screen.getByLabelText('Volume (0–100)')).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Play the/ })).toBeNull()
   })
 })

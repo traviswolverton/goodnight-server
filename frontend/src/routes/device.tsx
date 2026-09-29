@@ -1,7 +1,7 @@
 import { useId, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Volume2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/page-header'
 import { LoadError, LoadingBlocks } from '@/components/query-state'
@@ -13,15 +13,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { useCanEdit } from '@/hooks/use-can-edit'
 import { useNow } from '@/hooks/use-now'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { api } from '@/lib/api'
 import { timeAgo } from '@/lib/format'
-import { errorMessage } from '@/lib/mutations'
+import { errorMessage, toastError } from '@/lib/mutations'
 import { screenAt } from '@/lib/device'
 import { deviceQuery } from '@/lib/queries'
-import type { DeviceConfig, DeviceResponse, DimmerConfig, PressKind } from '@/lib/types'
+import type { DeviceConfig, DeviceResponse, DimmerConfig, PressKind, SoundConfig, SoundName } from '@/lib/types'
 
 /** Radix Select can't hold an empty value, so "nothing bound" is this. */
 const UNBOUND = '__none__'
@@ -153,6 +154,19 @@ const DIMMER_FIELDS: { key: keyof DimmerConfig; label: string; help: string; ste
   { key: 'wake_seconds', label: 'Stay on after a press (seconds)', help: 'In the dark, before it turns off again.', step: '1', min: 3, max: 600 },
 ]
 
+const SOUND_FIELDS: { key: 'volume' | 'dark_volume'; label: string; help: string }[] = [
+  { key: 'volume', label: 'Volume (0–100)', help: 'Normally, and for failures at any time.' },
+  { key: 'dark_volume', label: 'Volume in the dark (0–100)', help: 'Below the screen-off light level. 0 is silent — except failures.' },
+]
+
+const SOUND_LABELS: Record<SoundName, string> = {
+  armed: 'Armed — press again',
+  running: 'Sending',
+  success: 'Done',
+  failure: 'Failed',
+  cancel: 'Cancelled',
+}
+
 export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit: boolean }) {
   const queryClient = useQueryClient()
   const id = useId()
@@ -161,6 +175,11 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
     dark_lux: String(data.config.dimmer.dark_lux),
     dim_contrast: String(data.config.dimmer.dim_contrast),
     wake_seconds: String(data.config.dimmer.wake_seconds),
+  }))
+  const [soundsOn, setSoundsOn] = useState(data.config.sounds.enabled)
+  const [volumes, setVolumes] = useState<Record<'volume' | 'dark_volume', string>>(() => ({
+    volume: String(data.config.sounds.volume),
+    dark_volume: String(data.config.sounds.dark_volume),
   }))
   const [buttons, setButtons] = useState(data.config.buttons)
   const [problem, setProblem] = useState<string | null>(null)
@@ -175,6 +194,11 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
     (f) => dimmer[f.key].trim() === '' || !Number.isFinite(parsed[f.key]) || parsed[f.key] < f.min || parsed[f.key] > f.max,
   )
   const preview = screenAt(data.sensors?.lux, parsed)
+  const sounds: SoundConfig = { enabled: soundsOn, volume: Number(volumes.volume), dark_volume: Number(volumes.dark_volume) }
+  const invalidSound = SOUND_FIELDS.find((f) => {
+    const n = sounds[f.key]
+    return volumes[f.key].trim() === '' || !Number.isInteger(n) || n < 0 || n > 100
+  })
 
   const save = useMutation({
     mutationFn: (config: DeviceConfig) =>
@@ -193,8 +217,9 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
     event.preventDefault()
     if (invalid) return setProblem(`${invalid.label}: enter a number from ${invalid.min} to ${invalid.max}.`)
     if (parsed.dark_lux > parsed.bright_lux) return setProblem('The screen-off level must not be above the full-brightness level.')
+    if (invalidSound) return setProblem(`${invalidSound.label}: enter a whole number from 0 to 100.`)
     setProblem(null)
-    save.mutate({ dimmer: parsed, buttons })
+    save.mutate({ dimmer: parsed, sounds, buttons })
   }
 
   function bind(button: number, press: PressKind, value: string) {
@@ -249,9 +274,50 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
 
       <Card>
         <CardHeader>
+          <CardTitle>Buzzer</CardTitle>
+          <CardDescription>
+            Beeps for button presses: armed, sending, done or failed. A failure always plays at full volume, even in the dark, so
+            a door that didn&rsquo;t close gets heard.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="flex items-center gap-3">
+            <Switch id={`${id}-sounds`} checked={soundsOn} onCheckedChange={setSoundsOn} disabled={!canEdit} />
+            <Label htmlFor={`${id}-sounds`}>Play sounds</Label>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {SOUND_FIELDS.map((f) => (
+              <div key={f.key} className="grid gap-1.5">
+                <Label htmlFor={`${id}-${f.key}`}>{f.label}</Label>
+                <Input
+                  id={`${id}-${f.key}`}
+                  type="number"
+                  inputMode="numeric"
+                  step="1"
+                  min={0}
+                  max={100}
+                  value={volumes[f.key]}
+                  disabled={!canEdit || !soundsOn}
+                  onChange={(e) => setVolumes((v) => ({ ...v, [f.key]: e.target.value }))}
+                  aria-describedby={`${id}-${f.key}-help`}
+                />
+                <p id={`${id}-${f.key}-help`} className="text-xs text-muted-foreground">
+                  {f.help}
+                </p>
+              </div>
+            ))}
+          </div>
+          {canEdit && <SoundTester sounds={data.sounds} />}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Buttons</CardTitle>
           <CardDescription>
-            Which action each button runs. A press is short if released within 0.6 s; holding it longer is a long press.{' '}
+            Which action each button runs. A press is short if released within 0.6 s; holding it longer is a long press (the
+            device clicks when you can let go). An action that asks to confirm needs the same press again within{' '}
+            {data.confirm_seconds} s; anything else cancels it.{' '}
             {data.actions.length === 0 &&
               (canEdit ? (
                 <>
@@ -318,5 +384,33 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
         </div>
       )}
     </form>
+  )
+}
+
+/** Play each sound on the device now, at its saved settings. */
+function SoundTester({ sounds }: { sounds: SoundName[] }) {
+  const play = useMutation({
+    mutationFn: (sound: SoundName) => api('/api/device/sound', { method: 'POST', body: { sound } }),
+    onError: (e) => toastError(e, 'The device didn’t get it'),
+  })
+  return (
+    <div className="grid gap-2">
+      <p className="text-sm text-muted-foreground">Try them on the device (at the saved settings — save first to hear a change):</p>
+      <div className="flex flex-wrap gap-2">
+        {sounds.map((sound) => (
+          <Button
+            key={sound}
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => play.mutate(sound)}
+            disabled={play.isPending}
+            aria-label={`Play the ${SOUND_LABELS[sound].toLowerCase()} sound`}
+          >
+            <Volume2 aria-hidden="true" /> {SOUND_LABELS[sound]}
+          </Button>
+        ))}
+      </div>
+    </div>
   )
 }

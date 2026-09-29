@@ -50,6 +50,48 @@ _ID_RE = re.compile(rf"^[a-z][a-z0-9_]{{0,{ID_MAX - 1}}}$")
 #: encoder bounce or an MQTT redelivery shouldn't toggle a light twice.
 DEBOUNCE_SECONDS = 1.0
 
+#: How often a `verify` check re-reads its entities while it waits.
+VERIFY_POLL_SECONDS = 1.0
+VERIFY_MAX_ENTITIES = 8
+VERIFY_MAX_TIMEOUT = 300
+
+#: States that mean Home Assistant has lost the entity: a check watching
+#: one fails straight away rather than waiting out its timeout.
+_GONE_STATES = {None, "unavailable", "unknown"}
+
+
+class VerifyConfig(BaseModel):
+    """An action's optional check that it really happened: every entity
+    in `entities` reaching `state` within `timeout` seconds of the call.
+    See DESIGN.md "Button feedback"."""
+
+    entities: list[str] = Field(min_length=1, max_length=VERIFY_MAX_ENTITIES)
+    state: str
+    timeout: int = Field(30, ge=1, le=VERIFY_MAX_TIMEOUT)
+
+    @field_validator("entities")
+    @classmethod
+    def _check_entities(cls, value: list[str]) -> list[str]:
+        value = [e.strip() for e in value if e.strip()]
+        if not value:
+            raise ValueError("list at least one entity to check")
+        for entity_id in value:
+            if "." not in entity_id or " " in entity_id:
+                raise ValueError(f"{entity_id!r} isn't an entity id like cover.garage_door")
+        return value
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def _check_state(cls, value: object) -> str:
+        # actions.yaml is read as YAML 1.1, where a bare on/off is a
+        # boolean — and on/off are Home Assistant's commonest states.
+        if isinstance(value, bool):
+            return "on" if value else "off"
+        value = str(value).strip()
+        if not value:
+            raise ValueError("say which state counts as done, e.g. closed")
+        return value
+
 
 class ActionConfig(BaseModel):
     """One entry in actions.yaml."""
@@ -69,8 +111,12 @@ class ActionConfig(BaseModel):
     """Extra service data (kind=service), script variables (kind=script),
     or extra event data (kind=event)."""
     confirm: bool = False
-    """The display asks for a second press before sending it."""
+    """Ask for a second press before sending it: the display's menu, and
+    a button bound to it (app/device.py)."""
     state_template: str | None = None
+    verify: VerifyConfig | None = None
+    """Check it really happened, rather than trusting that Home Assistant
+    accepted the call. See VerifyConfig."""
 
     @field_validator("id")
     @classmethod
@@ -233,8 +279,20 @@ class ActionRunner:
             return ActionOutcome(ok=False, text="No adapter")
         if action.kind not in adapter.action_kinds:
             return ActionOutcome(ok=False, text="Not supported")
+        client = self.aggregator.client
+
+        if action.verify is not None:
+            # "Make sure it's closed", not "close it": already there means
+            # nothing to do, and that's a success.
+            try:
+                if _verify_result(action.verify, await adapter.read_states(client, action.verify.entities)) is True:
+                    logger.info("action %r from %s: already done, nothing sent", action_id, source)
+                    return ActionOutcome(ok=True, text="Already ok")
+            except Exception as exc:  # noqa: BLE001 - a failed pre-check just means run it
+                logger.warning("action %r: couldn't read its entities before running (%s)", action_id, exc)
+
         try:
-            text = await asyncio.wait_for(adapter.run_action(self.aggregator.client, action), timeout=15)
+            text = await asyncio.wait_for(adapter.run_action(client, action), timeout=15)
         except Exception as exc:  # noqa: BLE001 - any failure is reported, never raised
             logger.warning("action %r from %s failed: %s", action_id, source, exc)
             return ActionOutcome(ok=False, text="Failed")
@@ -242,4 +300,42 @@ class ActionRunner:
         # Show the result (a light now "on") without waiting a whole poll
         # interval; the short delay gives Home Assistant time to update.
         self.aggregator.request_poll(delay=1.0)
-        return ActionOutcome(ok=True, text=(text or "Done")[:STATE_MAX])
+        if action.verify is None:
+            return ActionOutcome(ok=True, text=(text or "Done")[:STATE_MAX])
+        return await self._verify(action, adapter, source)
+
+    async def _verify(self, action: ActionConfig, adapter, source: str) -> ActionOutcome:
+        """Poll the action's entities until they all pass, one is lost, or
+        the timeout runs out."""
+        check = action.verify
+        deadline = time.monotonic() + check.timeout
+        last: dict[str, str | None] = {}
+        while True:
+            try:
+                last = await adapter.read_states(self.aggregator.client, check.entities)
+            except Exception as exc:  # noqa: BLE001 - one failed read isn't the verdict
+                logger.warning("action %r: couldn't read its entities (%s)", action.id, exc)
+            result = _verify_result(check, last)
+            if result is True:
+                self.aggregator.request_poll(delay=0)
+                return ActionOutcome(ok=True, text="Done")
+            if result == "gone":
+                logger.warning("action %r from %s: an entity it checks is unavailable: %s",
+                               action.id, source, last)
+                return ActionOutcome(ok=False, text="Unavailable")
+            if time.monotonic() >= deadline:
+                logger.warning("action %r from %s: not %s after %ss: %s",
+                               action.id, source, check.state, check.timeout, last)
+                return ActionOutcome(ok=False, text="Timed out")
+            await asyncio.sleep(VERIFY_POLL_SECONDS)
+
+
+def _verify_result(check: VerifyConfig, states: dict[str, str | None]) -> bool | Literal["gone"]:
+    """True once every entity is in the wanted state; "gone" when one is
+    missing or unavailable (and that isn't the wanted state); else False."""
+    if not states:
+        return False
+    values = [states.get(e) for e in check.entities]
+    if any(v in _GONE_STATES and v != check.state for v in values):
+        return "gone"
+    return all(v == check.state for v in values)

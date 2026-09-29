@@ -71,7 +71,26 @@ describe('ActionEditor', () => {
       data: { brightness_pct: 40 },
       confirm: false,
       state_template: "{{ adapters.home.entities['light.desk'].state }}",
+      verify: null,
     })
+  })
+
+  it('saves a check that the action really happened', async () => {
+    const user = userEvent.setup()
+    const onDone = renderEditor()
+    await user.type(screen.getByLabelText('Label'), 'Close garage')
+    await user.type(screen.getByLabelText('Service'), 'cover.close_cover')
+    await user.type(screen.getByLabelText(/Target entity/), 'cover.left, cover.right')
+    await user.click(screen.getByRole('switch', { name: 'Check that it really happened' }))
+    await user.click(screen.getByRole('button', { name: 'Use the target' }))
+    await user.type(screen.getByLabelText('Must become'), 'closed')
+    const within = screen.getByLabelText('Within (seconds)')
+    await user.clear(within)
+    await user.type(within, '45')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(lastBody('/api/actions').verify).toEqual({ entities: ['cover.left', 'cover.right'], state: 'closed', timeout: 45 })
   })
 
   it('refuses extra data that is not a JSON object', async () => {

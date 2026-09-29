@@ -165,6 +165,7 @@ function ActionRow({
           <span className="font-medium">{action.label}</span>
           {action.resolved_state && <span className="font-mono text-sm text-muted-foreground">{action.resolved_state}</span>}
           {action.confirm && <span className="text-xs text-muted-foreground">asks to confirm</span>}
+          {action.verify && <span className="text-xs text-muted-foreground">checks for {action.verify.state}</span>}
         </span>
         <span className="truncate font-mono text-xs text-muted-foreground">
           {action.adapter}: {describeAction(action)}
@@ -186,6 +187,16 @@ function ActionRow({
       )}
     </li>
   )
+}
+
+/** Offered as suggestions for a check's state; any state is allowed. */
+const COMMON_STATES = ['closed', 'open', 'on', 'off', 'locked', 'unlocked', 'home', 'not_home']
+
+function splitEntities(text: string): string[] {
+  return text
+    .split(/[\s,]+/)
+    .map((e) => e.trim())
+    .filter(Boolean)
 }
 
 export function ActionEditor({
@@ -210,7 +221,12 @@ export function ActionEditor({
   const [dataText, setDataText] = useState(original && Object.keys(original.data).length ? JSON.stringify(original.data, null, 2) : '')
   const [confirm, setConfirm] = useState(original?.confirm ?? false)
   const [stateTemplate, setStateTemplate] = useState(original?.state_template ?? '')
+  const [verifyOn, setVerifyOn] = useState(!!original?.verify)
+  const [verifyEntities, setVerifyEntities] = useState(original?.verify?.entities.join(', ') ?? '')
+  const [verifyState, setVerifyState] = useState(original?.verify?.state ?? '')
+  const [verifyTimeout, setVerifyTimeout] = useState(String(original?.verify?.timeout ?? 30))
   const [picking, setPicking] = useState(false)
+  const [pickingVerify, setPickingVerify] = useState(false)
   const [statePreview, setStatePreview] = useState<PreviewActionStateResponse | null>(null)
   const [varsOpen, setVarsOpen] = useState(false)
   const stateInput = useRef<HTMLInputElement | null>(null)
@@ -258,6 +274,9 @@ export function ActionEditor({
         data: parsed,
         confirm,
         state_template: stateTemplate.trim() || null,
+        verify: verifyOn
+          ? { entities: splitEntities(verifyEntities), state: verifyState.trim(), timeout: Number(verifyTimeout) }
+          : null,
       }
       return original
         ? api(`/api/actions/${encodeURIComponent(original.id)}`, { method: 'PUT', body })
@@ -441,6 +460,89 @@ export function ActionEditor({
             <Switch id={`${prefix}-confirm`} checked={confirm} onCheckedChange={setConfirm} />
             <Label htmlFor={`${prefix}-confirm`}>Ask for a second press first — for locks, doors, anything you don&rsquo;t want to trigger by accident</Label>
           </div>
+
+          <section className="grid gap-3" aria-labelledby={`${prefix}-verify-heading`}>
+            <div className="flex items-center gap-3">
+              <Switch id={`${prefix}-verify`} checked={verifyOn} onCheckedChange={setVerifyOn} aria-describedby={`${prefix}-verify-help`} />
+              <Label htmlFor={`${prefix}-verify`} id={`${prefix}-verify-heading`}>
+                Check that it really happened
+              </Label>
+            </div>
+            <p id={`${prefix}-verify-help`} className="text-sm text-muted-foreground">
+              Otherwise &ldquo;done&rdquo; only means Home Assistant accepted the request. With a check, it waits for the entities to
+              reach the state, and fails (the loud beep on the device) if they don&rsquo;t in time. If they&rsquo;re already there,
+              nothing is sent.
+            </p>
+            {verifyOn && (
+              <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr]">
+                <div className="grid gap-2">
+                  <Label htmlFor={`${prefix}-verify-entities`}>Entities</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id={`${prefix}-verify-entities`}
+                      required
+                      className="min-w-0 font-mono text-sm"
+                      value={verifyEntities}
+                      placeholder="cover.garage_left, cover.garage_right"
+                      onChange={(e) => setVerifyEntities(e.target.value)}
+                    />
+                    <Button type="button" variant="outline" onClick={() => setPickingVerify(true)} disabled={!adapter} aria-label="Choose entities to check">
+                      <ListChecks aria-hidden="true" />
+                    </Button>
+                  </div>
+                  {target && kind !== 'event' && verifyEntities.trim() === '' && (
+                    <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => setVerifyEntities(target)}>
+                      Use the target
+                    </Button>
+                  )}
+                </div>
+                <div className="grid content-start gap-2">
+                  <Label htmlFor={`${prefix}-verify-state`}>Must become</Label>
+                  <Input
+                    id={`${prefix}-verify-state`}
+                    required
+                    className="font-mono text-sm"
+                    list={`${prefix}-verify-states`}
+                    value={verifyState}
+                    placeholder="closed"
+                    onChange={(e) => setVerifyState(e.target.value)}
+                  />
+                  <datalist id={`${prefix}-verify-states`}>
+                    {COMMON_STATES.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="grid content-start gap-2">
+                  <Label htmlFor={`${prefix}-verify-timeout`}>Within (seconds)</Label>
+                  <Input
+                    id={`${prefix}-verify-timeout`}
+                    required
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={300}
+                    value={verifyTimeout}
+                    onChange={(e) => setVerifyTimeout(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+            {pickingVerify && (
+              <EntityPicker
+                open
+                multiple
+                selected={splitEntities(verifyEntities)}
+                onOpenChange={(open) => !open && setPickingVerify(false)}
+                title="Choose the entities to check"
+                description="Every one must reach the state for the action to count as done."
+                queryKey={['running', adapter]}
+                load={() => api<AdapterCatalog>(`/api/adapters/${encodeURIComponent(adapter)}/catalog`)}
+                onPick={(ids) => setVerifyEntities(ids.join(', '))}
+                initialFilter={targetDomain ? `${targetDomain}.` : ''}
+              />
+            )}
+          </section>
 
           <section className="grid gap-2" aria-labelledby={`${prefix}-state-heading`}>
             <div>

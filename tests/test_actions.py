@@ -1,6 +1,6 @@
 """Actions (app/actions.py): the actions.yaml round trip, the payload's
-`actions` array, the runner (debounce, failures), the MQTT listener's
-request/reply, and the API."""
+`actions` array, the runner (debounce, failures, verify checks), the MQTT
+listener's request/reply, and the API."""
 from __future__ import annotations
 
 import asyncio
@@ -14,6 +14,7 @@ from app.actions import (
     ActionConfig,
     ActionConfigError,
     ActionRunner,
+    VerifyConfig,
     delete_action,
     load_actions,
     save_action,
@@ -252,3 +253,130 @@ def test_api_preview_state(actions_path):
     resp = client.post("/api/preview-action-state",
                        json={"state_template": "{{ adapters.home.entities['light.desk'].state|upper }}"})
     assert resp.json() == {"rendered": "ON", "state": "ON", "error": None}
+
+
+# --- verify: did it really happen? ---------------------------------------------
+
+class GarageAdapter(Adapter):
+    """A Home Assistant stand-in with two garage doors that close a couple
+    of reads after being told to — or never, when `jammed`."""
+
+    type_name = "garage"
+    action_kinds = ("service",)
+
+    def __init__(self, doors: dict[str, str | None] | None = None, jammed: bool = False,
+                 reads_to_close: int = 2) -> None:
+        super().__init__("home")
+        self.doors = doors if doors is not None else {"cover.left": "open", "cover.right": "closed"}
+        self.jammed = jammed
+        self.reads_to_close = reads_to_close
+        self.runs: list[str] = []
+        self.reads = 0
+        self.fail_reads = 0
+
+    async def fetch(self, client):
+        return AdapterResult(name=self.name, status="ok")
+
+    async def run_action(self, client, action):
+        self.runs.append(action.id)
+        self.reads_since_run = 0
+        return "Done"
+
+    async def read_states(self, client, entity_ids):
+        self.reads += 1
+        if self.fail_reads:
+            self.fail_reads -= 1
+            raise RuntimeError("HA hiccup")
+        if self.runs and not self.jammed:
+            self.reads_since_run += 1
+            if self.reads_since_run >= self.reads_to_close:
+                self.doors = {e: ("closed" if s == "open" else s) for e, s in self.doors.items()}
+        return {e: self.doors.get(e) for e in entity_ids}
+
+
+def _garage(**verify) -> ActionConfig:
+    return ActionConfig(id="close_garage", label="Close garage", adapter="home",
+                        service="cover.close_cover", target="cover.left, cover.right", confirm=True,
+                        verify={"entities": ["cover.left", "cover.right"], "state": "closed",
+                                "timeout": 5, **verify})
+
+
+@pytest.fixture(autouse=True)
+def fast_verify(monkeypatch):
+    monkeypatch.setattr("app.actions.VERIFY_POLL_SECONDS", 0.01)
+
+
+async def test_verify_waits_for_every_entity_to_reach_the_state(actions_path):
+    save_action(str(actions_path), _garage())
+    adapter = GarageAdapter()
+    runner, _ = _runner(actions_path, adapter)
+    outcome = await runner.run("close_garage", source="test")
+    assert (outcome.ok, outcome.text) == (True, "Done")
+    assert adapter.runs == ["close_garage"] and adapter.doors["cover.left"] == "closed"
+
+
+async def test_verify_already_passing_sends_nothing(actions_path):
+    save_action(str(actions_path), _garage())
+    adapter = GarageAdapter(doors={"cover.left": "closed", "cover.right": "closed"})
+    runner, _ = _runner(actions_path, adapter)
+    outcome = await runner.run("close_garage", source="test")
+    assert (outcome.ok, outcome.text) == (True, "Already ok")
+    assert adapter.runs == []
+
+
+async def test_verify_times_out_when_it_never_happens(actions_path, monkeypatch):
+    save_action(str(actions_path), _garage(timeout=1))
+    adapter = GarageAdapter(jammed=True)
+    runner, _ = _runner(actions_path, adapter)
+    outcome = await runner.run("close_garage", source="test")
+    assert (outcome.ok, outcome.text) == (False, "Timed out")
+    assert adapter.runs == ["close_garage"]
+
+
+async def test_verify_fails_straight_away_on_an_unavailable_entity(actions_path):
+    save_action(str(actions_path), _garage(timeout=60))
+    adapter = GarageAdapter(doors={"cover.left": "open", "cover.right": "unavailable"}, jammed=True)
+    runner, _ = _runner(actions_path, adapter)
+    outcome = await asyncio.wait_for(runner.run("close_garage", source="test"), timeout=5)
+    assert (outcome.ok, outcome.text) == (False, "Unavailable")
+
+
+async def test_verify_rides_out_a_failed_read(actions_path):
+    save_action(str(actions_path), _garage())
+    adapter = GarageAdapter()
+    adapter.fail_reads = 2  # the pre-check and the first poll both fail
+    runner, _ = _runner(actions_path, adapter)
+    outcome = await runner.run("close_garage", source="test")
+    assert (outcome.ok, outcome.text) == (True, "Done")
+    assert adapter.runs == ["close_garage"]
+
+
+async def test_verify_on_an_adapter_that_cannot_check_times_out(actions_path):
+    save_action(str(actions_path), _lamp(verify={"entities": ["light.desk"], "state": "on", "timeout": 1}))
+    adapter = SwitchAdapter()
+    runner, _ = _runner(actions_path, adapter)
+    outcome = await runner.run("desk_lamp", source="test")
+    assert (outcome.ok, outcome.text) == (False, "Timed out")
+    assert adapter.runs == ["desk_lamp"]
+
+
+@pytest.mark.parametrize("verify", [
+    {"entities": [], "state": "closed"},
+    {"entities": ["  "], "state": "closed"},
+    {"entities": ["garage door"], "state": "closed"},
+    {"entities": ["cover.x"], "state": " "},
+    {"entities": ["cover.x"], "state": "closed", "timeout": 0},
+    {"entities": ["cover.x"], "state": "closed", "timeout": 301},
+])
+def test_invalid_verify_checks_are_rejected(verify):
+    with pytest.raises(ValueError):
+        VerifyConfig.model_validate(verify)
+
+
+def test_verify_survives_the_round_trip(actions_path):
+    save_action(str(actions_path), _garage())
+    loaded = load_actions(str(actions_path))[0]
+    assert loaded.verify == VerifyConfig(entities=["cover.left", "cover.right"], state="closed", timeout=5)
+    save_action(str(actions_path), _lamp())
+    assert load_actions(str(actions_path))[1].verify is None
+    assert "verify" not in (actions_path.read_text().split("desk_lamp")[1])

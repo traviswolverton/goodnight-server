@@ -202,6 +202,13 @@ export interface AdapterCatalog {
 }
 
 export type ActionKind = 'service' | 'script' | 'event'
+/** An action's check that it really happened (app/actions.py VerifyConfig). */
+export interface VerifyConfig {
+  entities: string[]
+  state: string
+  /** Seconds after the call. */
+  timeout: number
+}
 export interface ActionConfig {
   id: string
   label: string
@@ -212,6 +219,7 @@ export interface ActionConfig {
   data: Record<string, unknown>
   confirm: boolean
   state_template: string | null
+  verify?: VerifyConfig | null
 }
 export interface ActionInfo extends ActionConfig {
   resolved_state: string | null
@@ -241,6 +249,14 @@ export interface DimmerConfig {
   dim_contrast: number
   wake_seconds: number
 }
+export interface SoundConfig {
+  enabled: boolean
+  /** 0-100. */
+  volume: number
+  /** 0-100, while the room is dark. Failures always use `volume`. */
+  dark_volume: number
+}
+export type SoundName = 'armed' | 'running' | 'success' | 'failure' | 'cancel'
 export type PressKind = 'short' | 'long'
 export interface ButtonBinding {
   short?: string | null
@@ -248,6 +264,7 @@ export interface ButtonBinding {
 }
 export interface DeviceConfig {
   dimmer: DimmerConfig
+  sounds: SoundConfig
   /** Keyed by button number, "1"-"8". Unbound buttons are absent. */
   buttons: Record<string, ButtonBinding>
 }
@@ -276,6 +293,9 @@ export interface DeviceResponse {
   config: DeviceConfig
   actions: { id: string; label: string }[]
   num_buttons: number
+  /** How long an armed confirm action waits for its second press. */
+  confirm_seconds: number
+  sounds: SoundName[]
   ha_discovery: boolean
 }
 
