@@ -1,47 +1,87 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, KeyRound, Pencil, RefreshCw, Trash2, UserPlus } from 'lucide-react'
+import { History, KeyRound, Loader2, LogIn, Pencil, RefreshCw, ShieldCheck, Trash2, UserPlus, UserRound, Users, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { GuideCard, GuideSection, GuideTerm } from '@/components/guide-card'
 import { PageHeader } from '@/components/page-header'
 import { LoadError, LoadingBlocks } from '@/components/query-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { api } from '@/lib/api'
 import { sessionQuery, type Role, type User } from '@/lib/auth'
-import { describeAction } from '@/lib/audit'
-import { formatDateTime } from '@/lib/format'
+import { describeAction, groupByDay } from '@/lib/audit'
+import { formatDateTime, formatTime, timeAgo } from '@/lib/format'
 import { toastError } from '@/lib/mutations'
 import { auditQuery, usersQuery } from '@/lib/queries'
 import { MIN_PASSWORD_LENGTH } from '@/routes/profile'
 
 export function UsersPage() {
   usePageTitle('Users')
+  const users = useQuery(usersQuery)
   return (
-    <>
+    <div className="max-w-3xl">
       <PageHeader title="Users" description="Who can sign in, and what they can change." />
-      <Tabs defaultValue="users">
-        <TabsList>
-          <TabsTrigger value="users">Accounts</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-        </TabsList>
-        <TabsContent value="users" className="mt-4">
-          <UsersTab />
-        </TabsContent>
-        <TabsContent value="activity" className="mt-4">
-          <ActivityTab />
-        </TabsContent>
-      </Tabs>
-    </>
+      <div className="grid gap-4">
+        {/* Open while you're the only account: the first person you add is when the roles matter. */}
+        <UsersGuide defaultOpen={users.data?.length === 1} />
+        <Tabs defaultValue="users">
+          <TabsList>
+            <TabsTrigger value="users">Accounts</TabsTrigger>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
+          </TabsList>
+          <TabsContent value="users" className="mt-4">
+            <UsersTab />
+          </TabsContent>
+          <TabsContent value="activity" className="mt-4">
+            <ActivityTab />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  )
+}
+
+function UsersGuide({ defaultOpen }: { defaultOpen: boolean }) {
+  return (
+    <GuideCard
+      title="Accounts and roles"
+      description="Everyone signs in with their own account. A role decides what they can change."
+      icon={Users}
+      defaultOpen={defaultOpen}
+    >
+      <GuideSection title="Two roles">
+        <dl className="grid gap-3 text-sm">
+          <GuideTerm icon={ShieldCheck} name="Admin">
+            Can change everything: connections, settings, users, and the actions, buttons and device.
+          </GuideTerm>
+          <GuideTerm icon={Eye} name="Viewer">
+            Can look around and preview, but not save a change. Good for family or a guest who just wants to see the state.
+          </GuideTerm>
+        </dl>
+      </GuideSection>
+      <GuideSection title="Signing in and out">
+        <ul className="grid list-disc gap-1.5 pl-5 text-sm text-muted-foreground">
+          <li>Changing someone’s role, disabling them, resetting their password or deleting them signs them out straight away.</li>
+          <li>Disabling keeps the account (and its history) but stops it signing in. Deleting removes it for good.</li>
+          <li>Anyone can change their own password from the account menu, under “Your account”.</li>
+          <li>You can’t change your own role, disable or delete yourself here, so there’s always an administrator.</li>
+        </ul>
+      </GuideSection>
+      <GuideSection title="The Activity tab">
+        <p className="text-sm text-muted-foreground">
+          Sign-ins and every change made through the app, most recent first. How long entries are kept is set on the Settings page.
+        </p>
+      </GuideSection>
+    </GuideCard>
   )
 }
 
@@ -66,68 +106,67 @@ function UsersTab() {
   if (users.isPending) return <LoadingBlocks rows={2} />
   if (users.error) return <LoadError error={users.error} retry={() => void users.refetch()} />
 
+  const admins = users.data.filter((u) => u.role === 'admin' && u.is_active).length
+
   return (
     <>
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {users.data.length} account{users.data.length === 1 ? '' : 's'}, {admins} active administrator{admins === 1 ? '' : 's'}.
+        </p>
         <Button onClick={() => setDialog({ kind: 'create' })}>
           <UserPlus aria-hidden="true" /> Add user
         </Button>
       </div>
       <Card className="overflow-hidden py-0">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="hidden sm:table-cell">Last sign-in</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.data.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="font-medium">
+        <ul className="divide-y" aria-label="Accounts">
+          {users.data.map((user) => {
+            const isMe = user.id === me?.id
+            return (
+              <li key={user.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:px-6">
+                <span
+                  className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-sm font-semibold text-accent-foreground uppercase"
+                  aria-hidden="true"
+                >
+                  {user.username.slice(0, 1) || <UserRound className="size-4" />}
+                </span>
+                <div className="grid min-w-0 flex-1 basis-48 gap-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">
                       {user.username}
-                      {user.id === me?.id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(you)</span>}
-                    </div>
-                    {user.email && <div className="text-xs text-muted-foreground">{user.email}</div>}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
-                        {user.role}
-                      </Badge>
-                      {!user.is_active && <Badge variant="outline">Disabled</Badge>}
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">{formatDateTime(user.last_login_at)}</TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" aria-label={`Edit ${user.username}`} onClick={() => setDialog({ kind: 'edit', user })}>
-                        <Pencil aria-hidden="true" />
-                      </Button>
-                      <Button variant="ghost" size="icon" aria-label={`Reset password for ${user.username}`} onClick={() => setDialog({ kind: 'reset', user })}>
-                        <KeyRound aria-hidden="true" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        aria-label={`Delete ${user.username}`}
-                        disabled={user.id === me?.id}
-                        onClick={() => setDialog({ kind: 'delete', user })}
-                      >
-                        <Trash2 aria-hidden="true" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
+                      {isMe && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(you)</span>}
+                    </span>
+                    <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
+                      {user.role}
+                    </Badge>
+                    {!user.is_active && <Badge variant="outline">Disabled</Badge>}
+                  </div>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {user.email ?? 'No email'} · {user.last_login_at ? `signed in ${timeAgo(Date.parse(user.last_login_at) / 1000)}` : 'never signed in'}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" aria-label={`Edit ${user.username}`} onClick={() => setDialog({ kind: 'edit', user })}>
+                    <Pencil aria-hidden="true" /> <span className="max-sm:hidden">Edit</span>
+                  </Button>
+                  <Button variant="ghost" size="sm" aria-label={`Reset password for ${user.username}`} onClick={() => setDialog({ kind: 'reset', user })}>
+                    <KeyRound aria-hidden="true" /> <span className="max-sm:hidden">Password</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    aria-label={`Delete ${user.username}`}
+                    disabled={isMe}
+                    onClick={() => setDialog({ kind: 'delete', user })}
+                  >
+                    <Trash2 aria-hidden="true" /> <span className="max-sm:hidden">Delete</span>
+                  </Button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
       </Card>
 
       {dialog?.kind === 'create' && <CreateUserDialog onClose={() => setDialog(null)} onSaved={refresh} />}
@@ -207,6 +246,9 @@ function CreateUserDialog({ onClose, onSaved }: { onClose: () => void; onSaved: 
           <div className="grid gap-2">
             <Label htmlFor="new-role">Role</Label>
             <RoleSelect id="new-role" value={role} onChange={setRole} />
+            <p className="text-xs text-muted-foreground">
+              A viewer can look but not change anything. Give admin only to people you’d trust with the garage.
+            </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>
@@ -326,6 +368,7 @@ function ActivityTab() {
   const audit = useQuery(auditQuery)
   if (audit.isPending) return <LoadingBlocks rows={2} />
   if (audit.error) return <LoadError error={audit.error} retry={() => void audit.refetch()} />
+  const groups = groupByDay(audit.data)
   return (
     <>
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -334,41 +377,44 @@ function ActivityTab() {
           <RefreshCw className={audit.isFetching ? 'animate-spin' : ''} aria-hidden="true" /> Refresh
         </Button>
       </div>
-      <Card className="overflow-hidden py-0">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>When</TableHead>
-                <TableHead>Who</TableHead>
-                <TableHead>What</TableHead>
-                <TableHead className="hidden md:table-cell">From</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {audit.data.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell className="text-xs whitespace-nowrap text-muted-foreground">{formatDateTime(entry.ts)}</TableCell>
-                  <TableCell>{entry.username ?? '—'}</TableCell>
-                  <TableCell>
-                    <span title={entry.action}>{describeAction(entry.action)}</span>
-                    {entry.target && <span className="ml-2 text-xs text-muted-foreground">{entry.target}</span>}
-                    {entry.detail && <span className="ml-2 text-xs text-muted-foreground">{JSON.stringify(entry.detail)}</span>}
-                  </TableCell>
-                  <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">{entry.ip ?? '—'}</TableCell>
-                </TableRow>
-              ))}
-              {audit.data.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="p-6 text-center text-muted-foreground">
-                    Nothing recorded yet.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {groups.length === 0 ? (
+        <Card>
+          <p className="px-6 text-center text-sm text-muted-foreground">Nothing recorded yet.</p>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {groups.map(({ day, entries }) => (
+            <section key={day} aria-label={day}>
+              <h3 className="mb-2 px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{day}</h3>
+              <Card className="overflow-hidden py-0">
+                <ul className="divide-y">
+                  {entries.map((entry) => (
+                    <li key={entry.id} className="flex items-start gap-3 px-4 py-3 sm:px-6">
+                      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground" aria-hidden="true">
+                        {entry.action.startsWith('login') || entry.action === 'logout' ? <LogIn className="size-4" /> : <History className="size-4" />}
+                      </span>
+                      <div className="grid min-w-0 flex-1 gap-0.5 text-sm">
+                        <span className="font-medium" title={entry.action}>
+                          {describeAction(entry.action)}
+                          {entry.target && <span className="ml-2 text-xs font-normal text-muted-foreground">{entry.target}</span>}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {entry.username ?? 'Nobody signed in'}
+                          {entry.ip && <> · <span className="font-mono">{entry.ip}</span></>}
+                        </span>
+                        {entry.detail && <span className="text-xs break-all text-muted-foreground">{JSON.stringify(entry.detail)}</span>}
+                      </div>
+                      <time className="shrink-0 text-xs whitespace-nowrap text-muted-foreground" dateTime={entry.ts} title={formatDateTime(entry.ts)}>
+                        {formatTime(entry.ts)}
+                      </time>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </section>
+          ))}
+        </div>
+      )}
     </>
   )
 }

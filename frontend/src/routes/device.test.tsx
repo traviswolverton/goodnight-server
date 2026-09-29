@@ -124,6 +124,39 @@ describe('SettingsForm', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('keeps Save off until something changes, and Discard puts it back', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    const volume = screen.getByLabelText('Volume (0–100)')
+    await user.clear(volume)
+    await user.type(volume, '50')
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(volume).toHaveValue(80)
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('marks where the room is now among the screen levels, as typed', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    expect(screen.getByText('the room is here now').closest('li')).toHaveTextContent('Dimmed')
+    const dark = screen.getByLabelText('Screen off below (lux)')
+    await user.clear(dark)
+    await user.type(dark, '9')
+    expect(screen.getByText('the room is here now').closest('li')).toHaveTextContent('Off')
+  })
+
+  it('keeps each setting’s explanation behind its (i)', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    const info = screen.getByRole('button', { name: 'About Volume (0–100)' })
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+    await user.click(info)
+    expect(info).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByLabelText('Volume (0–100)')).toHaveAccessibleDescription('Normally, and for failures at any time.')
+  })
+
   it('is read-only for viewers', () => {
     renderForm(false)
     expect(screen.getByLabelText('Full brightness at (lux)')).toBeDisabled()

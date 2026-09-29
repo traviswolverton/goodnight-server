@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setCsrfToken } from '@/lib/api'
 import type { DeviceResponse } from '@/lib/types'
-import { BindingDialog, ButtonGrid } from '@/routes/buttons'
+import { BindingDialog, ButtonList } from '@/routes/buttons'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }))
 vi.mock('sonner', () => ({ toast }))
@@ -57,9 +57,9 @@ afterEach(() => {
   setCsrfToken(null)
 })
 
-describe('ButtonGrid', () => {
-  it('lays the eight buttons out in device order with what each press runs', () => {
-    withClient(<ButtonGrid data={data} canEdit onEdit={() => {}} />)
+describe('ButtonList', () => {
+  it('lists the eight buttons in device order with what each press runs', () => {
+    withClient(<ButtonList data={data} canEdit onEdit={() => {}} />)
     const tiles = within(screen.getByRole('list', { name: 'Buttons' })).getAllByRole('button')
     expect(tiles).toHaveLength(8)
     expect(tiles[0]).toHaveAccessibleName('Button 1: short press Lamp, long press Close garage')
@@ -67,19 +67,27 @@ describe('ButtonGrid', () => {
     expect(tiles[7]).toHaveAccessibleName('Button 8: short press Lamp, long press nothing')
   })
 
+  it('flags actions that ask to confirm or are checked', () => {
+    withClient(<ButtonList data={data} canEdit onEdit={() => {}} />)
+    const first = screen.getByRole('button', { name: /^Button 1:/ })
+    expect(within(first).getByText('Asks to confirm')).toBeInTheDocument()
+    expect(within(first).getByText('Checked')).toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: /^Button 8:/ })).queryByText('Asks to confirm')).toBeNull()
+  })
+
   it('lights up a button that was just pressed', () => {
-    withClient(<ButtonGrid data={data} canEdit onEdit={() => {}} />)
+    withClient(<ButtonList data={data} canEdit onEdit={() => {}} />)
     expect(screen.getByRole('button', { name: /^Button 6:.*just pressed$/ })).toHaveTextContent('long press')
   })
 
   it('opens the editor for the tile clicked, and not for viewers', async () => {
     const user = userEvent.setup()
     const onEdit = vi.fn()
-    const { unmount } = withClient(<ButtonGrid data={data} canEdit onEdit={onEdit} />)
+    const { unmount } = withClient(<ButtonList data={data} canEdit onEdit={onEdit} />)
     await user.click(screen.getByRole('button', { name: /^Button 3:/ }))
     expect(onEdit).toHaveBeenCalledWith(3)
     unmount()
-    withClient(<ButtonGrid data={data} canEdit={false} onEdit={onEdit} />)
+    withClient(<ButtonList data={data} canEdit={false} onEdit={onEdit} />)
     expect(screen.getByRole('button', { name: /^Button 3:/ })).toBeDisabled()
   })
 })

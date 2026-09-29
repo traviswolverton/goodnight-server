@@ -1,3 +1,6 @@
+import { dayLabel } from '@/lib/format'
+import type { AuditEntry } from '@/lib/types'
+
 /** Plain-language labels for audit-log actions. The raw action name stays
  *  available (as a tooltip) for anyone correlating with server logs. */
 const LABELS: Record<string, string> = {
@@ -33,4 +36,16 @@ const LABELS: Record<string, string> = {
 
 export function describeAction(action: string): string {
   return LABELS[action] ?? action
+}
+
+/** The log's entries, in the order given, under a heading per day. */
+export function groupByDay(entries: AuditEntry[], now = new Date()): { day: string; entries: AuditEntry[] }[] {
+  const groups: { day: string; entries: AuditEntry[] }[] = []
+  for (const entry of entries) {
+    const day = dayLabel(entry.ts, now)
+    const last = groups[groups.length - 1]
+    if (last?.day === day) last.entries.push(entry)
+    else groups.push({ day, entries: [entry] })
+  }
+  return groups
 }

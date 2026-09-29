@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDateTime, formatUptime, timeAgo } from '@/lib/format'
+import { dayLabel, formatDateTime, formatUptime, timeAgo } from '@/lib/format'
 
 describe('timeAgo', () => {
   const now = 1_000_000
@@ -29,4 +29,15 @@ describe('formatUptime', () => {
     [3 * 3600 + 120, '3 h 2 min'],
     [2 * 86400 + 5 * 3600, '2 d 5 h'],
   ])('%s s -> %s', (seconds, expected) => expect(formatUptime(seconds)).toBe(expected))
+})
+
+describe('dayLabel', () => {
+  const now = new Date(2026, 8, 29, 15, 0) // 29 Sep 2026, 15:00 local
+  it('names today and yesterday, and dates the rest', () => {
+    expect(dayLabel(new Date(2026, 8, 29, 0, 5).toISOString(), now)).toBe('Today')
+    expect(dayLabel(new Date(2026, 8, 28, 23, 55).toISOString(), now)).toBe('Yesterday')
+    expect(dayLabel(new Date(2026, 8, 20, 12, 0).toISOString(), now)).toMatch(/Sep/)
+    expect(dayLabel(null, now)).toBe('Unknown date')
+    expect(dayLabel('nonsense', now)).toBe('Unknown date')
+  })
 })

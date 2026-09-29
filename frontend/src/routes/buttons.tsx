@@ -1,11 +1,13 @@
 import { useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Loader2 } from 'lucide-react'
+import { CheckCheck, Grid2x2, Hand, Loader2, Pencil, ShieldCheck, Timer } from 'lucide-react'
 import { toast } from 'sonner'
+import { GuideCard, GuideSection, GuideTerm } from '@/components/guide-card'
 import { PageHeader } from '@/components/page-header'
 import { EmptyState, LoadError, LoadingBlocks } from '@/components/query-state'
 import { ReadOnlyNote } from '@/components/read-only-note'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -19,9 +21,6 @@ import { deviceQuery } from '@/lib/queries'
 import type { ButtonBinding, DeviceAction, DeviceResponse, PressKind } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-/** The buttons as they sit on the device: two rows of four, 1–4 on top. */
-const COLUMNS = 4
-
 /** A tile lights up for this long after its button is pressed. */
 const PRESSED_SECONDS = 10
 
@@ -29,6 +28,7 @@ const PRESSED_SECONDS = 10
 const UNBOUND = '__none__'
 
 const PRESS_LABEL: Record<PressKind, string> = { short: 'Short press', long: 'Long press' }
+const PRESS_HINT: Record<PressKind, string> = { short: 'Tap and let go.', long: 'Hold until the device clicks, about 0.6 seconds.' }
 
 export function ButtonsPage() {
   usePageTitle('Buttons')
@@ -39,10 +39,10 @@ export function ButtonsPage() {
   const [editing, setEditing] = useState<number | null>(null)
 
   return (
-    <>
+    <div className="max-w-3xl">
       <PageHeader
         title="Buttons"
-        description="What each of the device's buttons does, laid out as they are on the device. A press is short if released within 0.6 s; hold it longer for a long press (the device clicks when you can let go)."
+        description="What each of the device's buttons does, for a short press and for a long press."
       />
       {!canEdit && <ReadOnlyNote />}
       {isPending ? (
@@ -64,24 +64,67 @@ export function ButtonsPage() {
               .
             </EmptyState>
           )}
-          <ButtonGrid data={data} canEdit={canEdit} onEdit={setEditing} />
-          <p className="text-sm text-muted-foreground">
-            Not sure which is which? Press a button on the device and its tile lights up here. Actions that ask to confirm need
-            the same press again within {data.confirm_seconds} s.
-          </p>
+          <ButtonGuide data={data} />
+          <ButtonList data={data} canEdit={canEdit} onEdit={setEditing} />
           {editing !== null && <BindingDialog data={data} button={editing} onClose={() => setEditing(null)} />}
         </div>
       )}
-    </>
+    </div>
   )
 }
 
-export function ButtonGrid({ data, canEdit, onEdit }: { data: DeviceResponse; canEdit: boolean; onEdit: (button: number) => void }) {
+/** "How buttons work": open until something is bound, then out of the way. */
+function ButtonGuide({ data }: { data: DeviceResponse }) {
+  return (
+    <GuideCard
+      title="How buttons work"
+      description="Each button runs one action on a short press and another on a long press."
+      icon={Grid2x2}
+      defaultOpen={Object.keys(data.config.buttons).length === 0}
+    >
+      <GuideSection title="Short and long presses">
+        <dl className="grid gap-3 text-sm">
+          <GuideTerm icon={Hand} name="Short press">
+            Let go within 0.6 seconds, like a tap.
+          </GuideTerm>
+          <GuideTerm icon={Timer} name="Long press">
+            Keep holding. The device clicks at 0.6 seconds, and that’s when you can let go.
+          </GuideTerm>
+        </dl>
+        <p className="text-sm text-muted-foreground">
+          Each has its own action, so one button can do two things: a lamp on a tap, the garage on a hold.
+        </p>
+      </GuideSection>
+      <GuideSection title="Finding a button">
+        <p className="text-sm text-muted-foreground">
+          Press it on the device and its row lights up here for {PRESSED_SECONDS} seconds. They’re numbered 1–4 along the top of the
+          device and 5–8 along the bottom.
+        </p>
+      </GuideSection>
+      <GuideSection title="Actions that ask to confirm">
+        <p className="text-sm text-muted-foreground">
+          The first press arms it with one beep. Press the same button the same way again within {data.confirm_seconds} seconds to
+          run it. Anything else cancels it.
+        </p>
+      </GuideSection>
+      {data.ha_discovery && (
+        <GuideSection title="In Home Assistant too">
+          <p className="text-sm text-muted-foreground">
+            Every press also reaches Home Assistant as a device trigger, whether or not anything is bound here, so a button can start
+            an automation directly.
+          </p>
+        </GuideSection>
+      )}
+    </GuideCard>
+  )
+}
+
+export function ButtonList({ data, canEdit, onEdit }: { data: DeviceResponse; canEdit: boolean; onEdit: (button: number) => void }) {
   const now = useNow(1000)
   const labels = Object.fromEntries(data.actions.map((a) => [a.id, a]))
   const numbers = Array.from({ length: data.num_buttons }, (_, i) => i + 1)
   return (
-    <ul className="grid gap-2 sm:gap-3" style={{ gridTemplateColumns: `repeat(${COLUMNS}, minmax(0, 1fr))` }} aria-label="Buttons">
+    <ul className="grid gap-3" aria-label="Buttons">
       {numbers.map((n) => {
         const binding = data.config.buttons[String(n)] ?? {}
         const lastPress = data.presses.find((p) => p.button === n)
@@ -95,17 +138,22 @@ export function ButtonGrid({ data, canEdit, onEdit }: { data: DeviceResponse; ca
               disabled={!canEdit}
               aria-label={`Button ${n}: short press ${describe('short')}, long press ${describe('long')}${pressed ? ', just pressed' : ''}`}
               className={cn(
-                'grid h-full w-full min-w-0 gap-1.5 rounded-lg border bg-card p-2 text-left transition-colors sm:p-3',
-                canEdit && 'hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-                pressed && 'border-primary ring-2 ring-primary',
+                'flex w-full items-center gap-4 rounded-xl border bg-card p-4 text-left shadow-sm transition-colors',
+                canEdit && 'hover:bg-accent/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                pressed && 'border-primary bg-accent/40 ring-2 ring-primary',
               )}
             >
-              <span className="flex items-baseline justify-between gap-1">
-                <span className="text-lg font-semibold tabular-nums sm:text-xl">{n}</span>
-                {pressed && <span className="truncate text-xs text-primary">{lastPress.press} press</span>}
+              <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-accent text-xl font-semibold text-accent-foreground tabular-nums">
+                {n}
               </span>
-              <PressLine press="short" action={labels[binding.short ?? '']} />
-              <PressLine press="long" action={labels[binding.long ?? '']} />
+              <span className="grid min-w-0 flex-1 gap-2">
+                <PressLine press="short" action={labels[binding.short ?? '']} />
+                <PressLine press="long" action={labels[binding.long ?? '']} />
+              </span>
+              {pressed && (
+                <Badge className="shrink-0 self-start">{lastPress.press} press</Badge>
+              )}
+              {canEdit && !pressed && <Pencil className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
             </button>
           </li>
         )
@@ -116,9 +164,19 @@ export function ButtonGrid({ data, canEdit, onEdit }: { data: DeviceResponse; ca
 
 function PressLine({ press, action }: { press: PressKind; action: DeviceAction | undefined }) {
   return (
-    <span className="grid min-w-0 text-xs sm:text-sm">
-      <span className="text-muted-foreground">{press === 'short' ? 'Short' : 'Long'}</span>
-      <span className={cn('truncate', !action && 'text-muted-foreground italic')}>{action ? action.label : 'nothing'}</span>
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+      <span className="w-12 shrink-0 text-xs font-medium tracking-wide text-muted-foreground uppercase">{press === 'short' ? 'Short' : 'Long'}</span>
+      <span className={cn('min-w-0 font-medium', !action && 'font-normal text-muted-foreground italic')}>{action ? action.label : 'nothing'}</span>
+      {action?.confirm && (
+        <Badge variant="secondary">
+          <ShieldCheck aria-hidden="true" /> Asks to confirm
+        </Badge>
+      )}
+      {action?.verify && (
+        <Badge variant="secondary">
+          <CheckCheck aria-hidden="true" /> Checked
+        </Badge>
+      )}
     </span>
   )
 }
@@ -170,6 +228,7 @@ export function BindingDialog({ data, button, onClose }: { data: DeviceResponse;
             return (
               <div key={press} className="grid gap-1.5">
                 <Label htmlFor={`${id}-${press}`}>{PRESS_LABEL[press]}</Label>
+                <p className="text-xs text-muted-foreground">{PRESS_HINT[press]}</p>
                 <Select
                   value={current ?? UNBOUND}
                   onValueChange={(v) => setBinding((b) => ({ ...b, [press]: v === UNBOUND ? null : v }))}
@@ -190,6 +249,11 @@ export function BindingDialog({ data, button, onClose }: { data: DeviceResponse;
                 {notes && (
                   <p id={`${id}-${press}-notes`} className="text-xs text-muted-foreground">
                     {notes}
+                  </p>
+                )}
+                {current && byId[current]?.confirm && (
+                  <p className="text-xs text-muted-foreground">
+                    Press the same button the same way again within {data.confirm_seconds} seconds to run it.
                   </p>
                 )}
               </div>
