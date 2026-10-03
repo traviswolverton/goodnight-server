@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 
+import aiomqtt
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -13,13 +14,16 @@ from fastapi.testclient import TestClient
 from app.actions import ActionRunner, save_action
 from app.api import router as api_router
 from app.device import (
+    FAST_DIAGNOSTICS_RENEW_SECONDS,
     NUM_BUTTONS,
     ButtonBinding,
     DeviceConfig,
     DeviceState,
+    DiagnosticsMessage,
     DimmerConfig,
     MqttDeviceLink,
     SoundConfig,
+    StickEvent,
     device_config_payload,
     ha_discovery_messages,
     load_device_config,
@@ -311,6 +315,7 @@ class _FakeLink:
         self.published = 0
         self.sounds: list[str] = []
         self.connected = True
+        self.fast_requests = 0
 
     async def publish_config(self) -> bool:
         self.published += 1
@@ -320,6 +325,9 @@ class _FakeLink:
         if self.connected:
             self.sounds.append(sound)
         return self.connected
+
+    def keep_diagnostics_fast(self) -> None:
+        self.fast_requests += 1
 
 
 def _client(paths):
@@ -409,3 +417,113 @@ def test_api_plays_a_test_sound(paths, state):
     assert resp.status_code == 400 and link.sounds == ["failure"]
     link.connected = False
     assert client.post("/api/device/sound", json={"sound": "armed"}).status_code == 503
+
+
+# --- diagnostics ---------------------------------------------------------------------
+
+#: What the firmware sends (docs/diagnostics-server-brief.md in the ESP32 repo).
+DIAGNOSTICS = {
+    "firmware": "Oct  3 2026 14:55:13", "uptime_s": 7, "heap_free": 146316, "setup_mode": False,
+    "wifi": {"rssi": -45, "ip": "192.0.2.87"},
+    "hardware": {"oled": True, "light": True, "expander": False, "joystick": True, "climate": True},
+    "stick": {"x": 1910, "y": 1902, "direction": "none", "pressed": False},
+    "buttons_down": [2, 5],
+}
+
+
+async def test_a_live_diagnostics_report_is_recorded_with_its_age(paths, state):
+    link = _link(paths, state)
+    await link.handle(settings.mqtt_diagnostics_topic, json.dumps(DIAGNOSTICS).encode())
+    assert state.diagnostics.hardware.expander is False and state.diagnostics.buttons_down == [2, 5]
+    assert state.diagnostics.stick.x == 1910 and state.diagnostics.wifi.ip == "192.0.2.87"
+    assert state.diagnostics_age() < 5
+
+
+async def test_the_retained_copy_replayed_on_connect_has_no_age(paths, state):
+    """It may be days old, so it must not look like a device that's reporting now."""
+    link = _link(paths, state)
+    await link.handle(settings.mqtt_diagnostics_topic, json.dumps(DIAGNOSTICS).encode(), retained=True)
+    assert state.diagnostics is not None and state.diagnostics_at is None
+    assert state.diagnostics_age() is None
+    await link.handle(settings.mqtt_diagnostics_topic, json.dumps(DIAGNOSTICS).encode())
+    assert state.diagnostics_age() < 5
+
+
+async def test_a_sparse_report_still_shows_what_it_has(paths, state):
+    link = _link(paths, state)
+    await link.handle(settings.mqtt_diagnostics_topic,
+                      b'{"uptime_s":3,"stick":{"x":null,"y":null,"direction":"none","pressed":false},"new_field":1}')
+    assert state.diagnostics.uptime_s == 3 and state.diagnostics.hardware is None
+    assert state.diagnostics.stick.x is None and state.diagnostics.buttons_down == []
+
+
+async def test_stick_events_are_kept_newest_first_and_a_retained_one_is_ignored(paths, state):
+    link = _link(paths, state)
+    await link.handle(settings.mqtt_stick_topic, b'{"stick":"up"}')
+    await link.handle(settings.mqtt_stick_topic, b'{"stick":"press"}')
+    await link.handle(settings.mqtt_stick_topic, b'{"stick":"left"}', retained=True)
+    assert [e.stick for e in state.stick_events] == ["press", "up"]
+
+
+@pytest.mark.parametrize("topic,payload", [
+    ("diagnostics", b"not json"),
+    ("diagnostics", b'{"buttons_down":[9]}'),
+    ("diagnostics", b'{"hardware":{"oled":"maybe"}}'),
+    ("stick", b'{"stick":"sideways"}'),
+])
+async def test_malformed_diagnostics_are_dropped(paths, state, topic, payload):
+    link = _link(paths, state)
+    await link.handle(getattr(settings, f"mqtt_{topic}_topic"), payload)
+    assert state.diagnostics is None and not state.stick_events
+
+
+async def test_fast_mode_is_requested_once_then_renewed_only_when_due(paths, state):
+    link, mqtt = _connected_link(paths, state)
+
+    async def requests() -> list[dict]:
+        await asyncio.gather(*link._tasks)
+        return [json.loads(p) for t, p in mqtt.sent if t == settings.mqtt_diagnostics_request_topic]
+
+    link.keep_diagnostics_fast()
+    link.keep_diagnostics_fast()  # the page polls every second
+    assert await requests() == [{"fast_seconds": 60}]
+
+    link._fast_requested_at -= FAST_DIAGNOSTICS_RENEW_SECONDS + 1
+    link.keep_diagnostics_fast()
+    assert len(await requests()) == 2
+
+
+async def test_fast_mode_is_not_requested_without_a_connection_and_retried_after_a_failure(paths, state):
+    link = _link(paths, state)
+    link.keep_diagnostics_fast()
+    assert not link._tasks
+
+    class _Failing(_FakeMqtt):
+        async def publish(self, topic, payload, qos=0, retain=False):
+            raise aiomqtt.MqttError("gone")
+
+    link._client = _Failing()
+    link.keep_diagnostics_fast()
+    await asyncio.gather(*link._tasks)
+    assert link._fast_requested_at is None  # so the next poll tries again
+
+
+def test_api_diagnostics_shows_the_report_events_and_keeps_the_device_reporting(paths, state):
+    state.diagnostics = DiagnosticsMessage.model_validate(DIAGNOSTICS)
+    state.diagnostics_at = None
+    for kind in ("up", "down", "left"):
+        state.stick_events.appendleft(StickEvent(stick=kind, at=1.0))
+    client, link = _client(paths)
+    data = client.get("/api/device/diagnostics").json()
+    assert link.fast_requests == 1
+    assert data["diagnostics"]["hardware"]["expander"] is False
+    assert data["diagnostics_age_seconds"] is None
+    assert [e["stick"] for e in data["stick_events"]] == ["left", "down", "up"]
+    assert data["presses"] == [] and data["sounds"][0] == "armed"
+
+
+def test_api_diagnostics_before_the_device_has_said_anything(paths, state):
+    client, _ = _client(paths)
+    data = client.get("/api/device/diagnostics").json()
+    assert data["diagnostics"] is None and data["diagnostics_age_seconds"] is None
+    assert data["online"] is None and data["sensors"] is None

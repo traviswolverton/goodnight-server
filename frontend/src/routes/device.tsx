@@ -366,7 +366,7 @@ function ScreenLevels({ dimmer, valid, current, lux }: { dimmer: DimmerConfig; v
 }
 
 /** Play each sound on the device now, at its saved settings. */
-function SoundTester({ sounds }: { sounds: SoundName[] }) {
+export function SoundTester({ sounds }: { sounds: SoundName[] }) {
   const play = useMutation({
     mutationFn: (sound: SoundName) => api('/api/device/sound', { method: 'POST', body: { sound } }),
     onError: (e) => toastError(e, 'The device didn’t get it'),

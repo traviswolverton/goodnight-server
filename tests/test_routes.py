@@ -30,7 +30,10 @@ def test_healthz_is_a_plain_ok():
 def test_mqtt_reference_lists_the_device_topics_from_the_real_settings():
     topics = {t["topic"]: t for t in _client().get("/api/mqtt-reference").json()["topics"]}
     assert set(topics) == {"bedside/config", "bedside/sound", "bedside/sensors", "bedside/button",
-                           "bedside/availability"}
+                           "bedside/availability", "bedside/stick", "bedside/diagnostics",
+                           "bedside/diagnostics/request"}
+    assert topics["bedside/diagnostics"]["retained"] and not topics["bedside/stick"]["retained"]
+    assert topics["bedside/diagnostics/request"]["direction"] == "server → device"
     assert topics["bedside/sound"]["direction"] == "server → device" and not topics["bedside/sound"]["retained"]
     assert topics["bedside/button"]["example"] == {"button": 3, "press": "long"}
 

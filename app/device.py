@@ -12,9 +12,11 @@ to show, this module is about the hardware on the nightstand:
   press comes again, and each step plays a sound on the device's buzzer
   (`bedside/sound`). See DESIGN.md "Button feedback".
 - **DeviceState** — the latest `bedside/sensors` reading, whether the
-  device is online (`bedside/availability`, its MQTT last will), and the
-  last few button presses. In memory only: the device re-sends all of it
-  within 30 seconds of any restart, and retained messages cover the gap.
+  device is online (`bedside/availability`, its MQTT last will), the
+  last few button presses, and for the Diagnostics page the device's
+  `bedside/diagnostics` report and joystick events. In memory only: the
+  device re-sends all of it within 30 seconds of any restart, and retained
+  messages cover the gap.
 - **MqttDeviceLink** — its own broker connection: a long-lived receive
   loop, kept apart from status publishing (app/mqtt.py). It also announces the device to Home Assistant via
   MQTT discovery: three sensors, and a device trigger per button and press
@@ -33,7 +35,7 @@ import os
 import time
 from collections import deque
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import aiomqtt
 import yaml
@@ -53,6 +55,13 @@ CONNECT_TIMEOUT_SECONDS = 5.0
 
 #: How long an armed `confirm` action waits for its second press.
 CONFIRM_SECONDS = 5.0
+
+#: How long one request makes the device report once a second, and how often
+#: the Diagnostics page's polling renews it. The renewal is well inside the
+#: window, so one lost request doesn't make the page go quiet, and a closed
+#: page stops it within a minute (the device's own timer ends it).
+FAST_DIAGNOSTICS_SECONDS = 60
+FAST_DIAGNOSTICS_RENEW_SECONDS = 30.0
 
 
 # ---- Config --------------------------------------------------------------
@@ -183,8 +192,65 @@ class ButtonPress(BaseModel):
     None while it runs or when nothing is bound."""
 
 
+class WifiInfo(BaseModel):
+    rssi: int | None = None
+    ip: str | None = None
+
+
+class HardwareFlags(BaseModel):
+    """What answered at boot. False = a wiring problem; None = not reported."""
+
+    oled: bool | None = None
+    light: bool | None = None
+    expander: bool | None = None
+    joystick: bool | None = None
+    climate: bool | None = None
+
+
+class StickState(BaseModel):
+    """Raw 12-bit axis readings (0-4095, centred near 1900); None when no
+    joystick is present."""
+
+    x: int | None = None
+    y: int | None = None
+    direction: str = "none"
+    pressed: bool = False
+
+
+class DiagnosticsMessage(BaseModel):
+    """One `bedside/diagnostics` message. Lenient on purpose — this is the
+    page you open when something is wrong, so an unfamiliar field or a
+    missing one mustn't hide the rest."""
+
+    firmware: str | None = None
+    uptime_s: int | None = None
+    heap_free: int | None = None
+    setup_mode: bool = False
+    wifi: WifiInfo | None = None
+    hardware: HardwareFlags | None = None
+    stick: StickState | None = None
+    buttons_down: list[Annotated[int, Field(ge=1, le=NUM_BUTTONS)]] = Field(default_factory=list)
+
+
+class StickMessage(BaseModel):
+    """One `bedside/stick` message. Repeats while the stick is held."""
+
+    stick: Literal["up", "down", "left", "right", "press"]
+
+
+class StickEvent(BaseModel):
+    """A joystick event as the Diagnostics page shows it."""
+
+    stick: str
+    at: float
+
+
 #: How many recent presses the Device page shows.
 RECENT_PRESSES = 20
+
+#: How many joystick events are kept. They repeat while the stick is held,
+#: so this is a few seconds of history, not a log.
+RECENT_STICK_EVENTS = 20
 
 
 class DeviceState:
@@ -195,6 +261,17 @@ class DeviceState:
         """None until the broker has told us either way."""
         self.presses: deque[ButtonPress] = deque(maxlen=RECENT_PRESSES)
         self.link_connected = False
+        self.diagnostics: DiagnosticsMessage | None = None
+        self.diagnostics_at: float | None = None
+        """When the server received `diagnostics`. None for the retained
+        copy replayed on subscribing: it can be days old, so it says
+        nothing about the device right now."""
+        self.stick_events: deque[StickEvent] = deque(maxlen=RECENT_STICK_EVENTS)
+
+    def diagnostics_age(self, now: float | None = None) -> float | None:
+        if self.diagnostics_at is None:
+            return None
+        return (now if now is not None else time.time()) - self.diagnostics_at
 
     def sensors_age(self, now: float | None = None) -> float | None:
         if self.sensors_at is None:
@@ -276,6 +353,7 @@ class MqttDeviceLink:
         self._client: aiomqtt.Client | None = None
         self._tasks: set[asyncio.Task] = set()
         self._armed: _Armed | None = None
+        self._fast_requested_at: float | None = None
 
     async def run_forever(self) -> None:
         last_error: str | None = None
@@ -290,13 +368,17 @@ class MqttDeviceLink:
                     self.state.link_connected = True
                     last_error = None
                     for topic in (settings.mqtt_sensors_topic, settings.mqtt_availability_topic,
-                                  settings.mqtt_button_topic):
+                                  settings.mqtt_button_topic, settings.mqtt_diagnostics_topic,
+                                  settings.mqtt_stick_topic):
                         await client.subscribe(topic, qos=1)
+                    # A new connection may have lost the last request; renew on the next poll.
+                    self._fast_requested_at = None
                     await self.publish_config()
                     await self._publish_discovery(client)
                     logger.info("device link up")
                     async for message in client.messages:
-                        self._spawn(self.handle(str(message.topic), message.payload))
+                        self._spawn(self.handle(str(message.topic), message.payload,
+                                                retained=message.retain))
             except aiomqtt.MqttError as exc:
                 # Once per outage (or change of error), not every retry —
                 # like app/mqtt.py.
@@ -336,9 +418,11 @@ class MqttDeviceLink:
         for topic, payload in ha_discovery_messages(prefix):
             await client.publish(topic, payload, qos=1, retain=True)
 
-    async def handle(self, topic: str, payload: object) -> None:
+    async def handle(self, topic: str, payload: object, retained: bool = False) -> None:
         """One message from the device. Malformed ones are logged and
-        dropped — a device bug should never take the link down."""
+        dropped — a device bug should never take the link down. `retained`
+        is the broker's flag: set only on the copy it replays when we
+        subscribe, never on a live publish."""
         raw = payload.decode() if isinstance(payload, (bytes, bytearray)) else str(payload)
         if topic == settings.mqtt_availability_topic:
             self.state.online = raw.strip() == "online"
@@ -356,6 +440,47 @@ class MqttDeviceLink:
                 logger.warning("ignoring a malformed button press: %s", exc)
                 return
             await self._on_press(message)
+        elif topic == settings.mqtt_diagnostics_topic:
+            try:
+                diagnostics = DiagnosticsMessage.model_validate_json(raw)
+            except ValidationError as exc:
+                logger.warning("ignoring a malformed diagnostics report: %s", exc)
+                return
+            self.state.diagnostics = diagnostics
+            self.state.diagnostics_at = None if retained else time.time()
+        elif topic == settings.mqtt_stick_topic:
+            if retained:
+                return
+            try:
+                stick = StickMessage.model_validate_json(raw)
+            except ValidationError as exc:
+                logger.warning("ignoring a malformed stick event: %s", exc)
+                return
+            self.state.stick_events.appendleft(StickEvent(stick=stick.stick, at=time.time()))
+
+    def keep_diagnostics_fast(self) -> None:
+        """Ask the device to report once a second, unless a request is
+        still running. Called on every poll from the Diagnostics page, so it
+        only publishes every FAST_DIAGNOSTICS_RENEW_SECONDS, in the
+        background, and never raises. Nobody polling = no renewal = the
+        device drops back to its 30 s rhythm on its own."""
+        now = time.time()
+        last = self._fast_requested_at
+        if self._client is None or (last is not None and now - last < FAST_DIAGNOSTICS_RENEW_SECONDS):
+            return
+        self._fast_requested_at = now
+        self._spawn(self._publish_fast_request())
+
+    async def _publish_fast_request(self) -> None:
+        client = self._client
+        if client is None:
+            return
+        payload = json.dumps({"fast_seconds": FAST_DIAGNOSTICS_SECONDS})
+        try:
+            await client.publish(settings.mqtt_diagnostics_request_topic, payload, qos=1)
+        except aiomqtt.MqttError as exc:
+            self._fast_requested_at = None  # try again on the next poll
+            logger.warning("couldn't ask the device for fast diagnostics: %s", exc)
 
     async def publish_sound(self, sound: SoundName) -> bool:
         """Tell the device to play `sound`. Not retained — a beep that

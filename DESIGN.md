@@ -31,6 +31,9 @@ snapshots): homelab services rendered as cards. The bedside unit isn't — see
 | `bedside/sensors` | device → server | yes | `{"temperature_c", "humidity", "lux", "screen"}` every 30s |
 | `bedside/button` | device → server | no | `{"button": 1-8, "press": "short"\|"long"}` |
 | `bedside/availability` | device → server | yes | `online` / `offline` (last will) |
+| `bedside/diagnostics` | device → server | yes | the device's own checks: hardware found at boot, joystick, buttons held, Wi-Fi, heap, uptime, firmware build. Every 30 s, once a second in fast mode — see "Diagnostics" |
+| `bedside/diagnostics/request` | server → device | no | `{"fast_seconds": N}` (max 600, 0 stops) — fast mode |
+| `bedside/stick` | device → server | no | `{"stick": "up"\|"down"\|"left"\|"right"\|"press"}`, repeating while held |
 | `bedside/sound` | server → device | no | `{"sound": "armed"\|"running"\|"success"\|"failure"\|"cancel", "urgent": bool}` — see "Button feedback" |
 
 - **Buttons are bound here, not on the device.** `config/device.yaml` maps
@@ -55,6 +58,44 @@ snapshots): homelab services rendered as cards. The bedside unit isn't — see
   light, temperature, humidity — all local to the device) plus brief
   confirmations of what a button press did, alongside its sounds. No
   menus: actions are reached through buttons only, bound server-side.
+
+### Diagnostics (2026-10-03)
+The **Diagnostics** page (`/diagnostics`, any signed-in user) shows the
+device's own view of its hardware, so a loose wire or a dead sensor is
+visible without a serial cable: the five boot checks (display, light
+sensor, button expander, joystick axes, DHT11) as answering / not
+answering, the raw joystick, buttons 1–8 lit while held or just pressed,
+Wi-Fi signal, address, uptime, firmware build and free heap, and (for
+admins) the buzzer's sound test. The firmware's contract is in the
+bedside-dashboard-esp32 repo (`docs/diagnostics-server-brief.md`).
+
+- **Fast mode is kept alive by polling.** The page polls
+  `GET /api/device/diagnostics` once a second, and the server turns that
+  into `{"fast_seconds": 60}` on the request topic, at most every 30 s
+  (`keep_diagnostics_fast`). A GET rather than a POST on purpose: viewers
+  can't POST, and "nobody is looking" then needs no extra bookkeeping — the
+  polling stops, the 60 s runs out, and the device is back to every 30 s.
+  A hidden tab doesn't poll either.
+- **A retained report is not a current one.** `bedside/diagnostics` is
+  retained, so on every (re)connect the broker replays the last one,
+  possibly days old. The link records the broker's retain flag: a replayed
+  report is shown with *no age* ("waiting for a new report"), and any
+  report older than 90 s, or any report while the device is offline, is
+  shown greyed out as "not reporting". Only a live publish counts as current.
+  (`bedside/sensors` is retained too and is not treated this way yet: the
+  Device page's "last report" resets on a server restart.)
+- **Events are not retained**, so a press from before the page opened is
+  never seen. The server keeps the last few button and joystick events,
+  stamped with its own clock; the page ages them against the `now` the
+  endpoint sends, not the viewer's clock.
+- **Lenient parsing.** A report with a missing or unknown field still
+  shows what it has; only the wrong *type* of a field (a button 9, a hardware
+  flag that isn't a boolean) drops the message.
+- **ACL.** The device needs write on `bedside/diagnostics` and
+  `bedside/stick` and read on `bedside/diagnostics/request`; the server the
+  reverse. Mosquitto doesn't wildcard these (`bedside/diagnostics` does not
+  cover `…/request`), and a denied publish is silent, so a missing ACL line
+  looks like a device that never reports.
 
 ### What the bedside dropped (2026-09-29)
 Everything the desk unit needs to *show homelab status* was removed, since

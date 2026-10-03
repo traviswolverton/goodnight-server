@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # Sounds for the device's buzzer (app/device.py, DESIGN.md "Button
     # feedback"): the server says which to play.
     mqtt_sound_topic: str = "bedside/sound"
+    # Diagnostics (app/device.py, DESIGN.md "Diagnostics"): what the device
+    # found at boot and reads right now, its joystick events, and the
+    # request that makes it report once a second for a while.
+    mqtt_diagnostics_topic: str = "bedside/diagnostics"
+    mqtt_diagnostics_request_topic: str = "bedside/diagnostics/request"
+    mqtt_stick_topic: str = "bedside/stick"
     # Home Assistant MQTT discovery (app/device.py): the device's sensors
     # and button presses announced under this prefix, retained. Only
     # useful if Home Assistant reads this broker (directly or bridged);

@@ -134,6 +134,46 @@ export interface ButtonPress {
   ok: boolean | null
   text: string | null
 }
+/** What the device found at boot. false = a wiring problem; null = not reported. */
+export interface DiagnosticsHardware {
+  oled: boolean | null
+  light: boolean | null
+  expander: boolean | null
+  joystick: boolean | null
+  climate: boolean | null
+}
+/** One `bedside/diagnostics` report (app/device.py DiagnosticsMessage). */
+export interface DiagnosticsReport {
+  firmware: string | null
+  uptime_s: number | null
+  heap_free: number | null
+  setup_mode: boolean
+  wifi: { rssi: number | null; ip: string | null } | null
+  hardware: DiagnosticsHardware | null
+  /** x and y are raw 12-bit readings, null when there's no joystick. */
+  stick: { x: number | null; y: number | null; direction: string; pressed: boolean } | null
+  buttons_down: number[]
+}
+export interface StickEvent {
+  stick: 'up' | 'down' | 'left' | 'right' | 'press'
+  /** Unix seconds, on the server's clock. */
+  at: number
+}
+/** GET /api/device/diagnostics. */
+export interface DiagnosticsResponse {
+  /** The server's clock, unix seconds: ages of `presses` and `stick_events` are `now - at`. */
+  now: number
+  online: boolean | null
+  link_connected: boolean
+  diagnostics: DiagnosticsReport | null
+  /** null with a report = only the retained copy from before the server connected. */
+  diagnostics_age_seconds: number | null
+  sensors: SensorReading | null
+  sensors_age_seconds: number | null
+  presses: ButtonPress[]
+  stick_events: StickEvent[]
+  sounds: SoundName[]
+}
 /** An action as the Buttons page lists it. */
 export interface DeviceAction {
   id: string

@@ -51,6 +51,24 @@ async def mqtt_reference() -> dict[str, object]:
             {"topic": settings.mqtt_button_topic, "direction": "device → server", "retained": False,
              "about": "A button press. What it does is decided here (Buttons page).",
              "example": {"button": 3, "press": "long"}},
+            {"topic": settings.mqtt_stick_topic, "direction": "device → server", "retained": False,
+             "about": "A joystick event: up, down, left or right (repeating while held), or press. "
+                      "Shown on the Diagnostics page.",
+             "example": {"stick": "up"}},
+            {"topic": settings.mqtt_diagnostics_topic, "direction": "device → server", "retained": True,
+             "about": "What the device found at boot and reads now: hardware flags, joystick, buttons held, "
+                      "Wi-Fi, memory, uptime. Every 30 s, or once a second in fast mode. "
+                      "Shown on the Diagnostics page.",
+             "example": {"firmware": "Oct  3 2026 14:55:13", "uptime_s": 7, "heap_free": 146316,
+                         "setup_mode": False, "wifi": {"rssi": -45, "ip": "192.0.2.87"},
+                         "hardware": {"oled": True, "light": True, "expander": True,
+                                      "joystick": True, "climate": True},
+                         "stick": {"x": 1910, "y": 1902, "direction": "none", "pressed": False},
+                         "buttons_down": []}},
+            {"topic": settings.mqtt_diagnostics_request_topic, "direction": "server → device", "retained": False,
+             "about": "Make the device report diagnostics and sensors once a second for this many seconds "
+                      "(at most 600; 0 stops it). The Diagnostics page renews it while it's open.",
+             "example": {"fast_seconds": 60}},
             {"topic": settings.mqtt_availability_topic, "direction": "device → server", "retained": True,
              "about": "online, or offline (the device's last will).",
              "example": "online"},

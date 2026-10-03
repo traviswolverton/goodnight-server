@@ -81,6 +81,12 @@ const deviceRoute = createRoute({
   component: lazyRouteComponent(() => import('@/routes/device'), 'DevicePage'),
 })
 
+const diagnosticsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/diagnostics',
+  component: lazyRouteComponent(() => import('@/routes/diagnostics'), 'DiagnosticsPage'),
+})
+
 const buttonsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/buttons',
@@ -178,6 +184,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     homeRoute,
     deviceRoute,
+    diagnosticsRoute,
     actionsRoute,
     buttonsRoute,
     settingsRoute,

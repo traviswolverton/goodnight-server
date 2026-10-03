@@ -46,6 +46,16 @@ await step('device', async () => {
   await shot('p1-device')
 })
 
+await step('diagnostics', async () => {
+  await goto('/diagnostics')
+  // The stack has a broker but no device, so nothing has been reported.
+  check('diagnostics: says the device has not reported', /No report yet/.test(await text()))
+  check('diagnostics: has the sound test', /Sound test/.test(await text()))
+  const body = (await api('/api/device/diagnostics')).body
+  check('diagnostics: api has no report yet', body.diagnostics === null && body.link_connected === true, JSON.stringify(body))
+  await shot('p1-diagnostics')
+})
+
 await step('buttons', async () => {
   await goto('/buttons')
   const tiles = await page.$$eval('ul[aria-label=Buttons] button', (b) => b.map((x) => x.getAttribute('aria-label')))
@@ -98,7 +108,7 @@ await step('users', async () => {
 await step('mqtt + redirects', async () => {
   await goto('/mqtt')
   const t = await text()
-  check('mqtt: reference lists the device topics with examples', /bedside\/config/.test(t) && /bedside\/sound/.test(t) && /bedside\/button/.test(t) && !/bedside\/status/.test(t), t.slice(0, 300))
+  check('mqtt: reference lists the device topics with examples', /bedside\/config/.test(t) && /bedside\/sound/.test(t) && /bedside\/button/.test(t) && /bedside\/diagnostics/.test(t) && !/bedside\/status/.test(t), t.slice(0, 300))
   await goto('/tools/lines-template'); check('old card editor bookmark → home', path() === '/', path())
   await goto('/docs/mqtt'); check('old MQTT docs bookmark → /mqtt', path() === '/mqtt', path())
   await shot('m1-mqtt')

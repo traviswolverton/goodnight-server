@@ -5,6 +5,7 @@ import type {
   AuditEntry,
   ConnectionsResponse,
   DeviceResponse,
+  DiagnosticsResponse,
   MqttReference,
   Overview,
   SettingsResponse,
@@ -21,6 +22,15 @@ export const deviceQuery = queryOptions({
   queryKey: ['device'],
   queryFn: () => api<DeviceResponse>('/api/device'),
   refetchInterval: 5_000, // live readings and presses
+})
+
+/** Polling this is also what keeps the device reporting once a second, so it
+ *  stops on its own when the page closes (or its tab is hidden: react-query
+ *  doesn't poll in the background). */
+export const diagnosticsQuery = queryOptions({
+  queryKey: ['device-diagnostics'],
+  queryFn: () => api<DiagnosticsResponse>('/api/device/diagnostics'),
+  refetchInterval: 1_000,
 })
 
 export const overviewQuery = queryOptions({

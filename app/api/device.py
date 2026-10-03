@@ -5,6 +5,7 @@ Reads are open to any signed-in user; saving is admin-only and audited,
 via the router's dependencies in app/api/__init__.py."""
 from __future__ import annotations
 
+import time
 from typing import get_args
 
 from fastapi import APIRouter, HTTPException, Request
@@ -24,6 +25,9 @@ from app.settings import settings
 
 router = APIRouter()
 
+#: How many of the newest button and joystick events the Diagnostics page gets.
+RECENT_INPUT_EVENTS = 8
+
 
 @router.get("/device")
 async def get_device() -> dict[str, object]:
@@ -42,6 +46,30 @@ async def get_device() -> dict[str, object]:
         "confirm_seconds": CONFIRM_SECONDS,
         "sounds": list(get_args(SoundName)),
         "ha_discovery": bool(settings.ha_discovery_prefix.strip()),
+    }
+
+
+@router.get("/device/diagnostics")
+async def get_diagnostics(request: Request) -> dict[str, object]:
+    """Everything the Diagnostics page shows. Polling this is what keeps the
+    device reporting once a second (app/device.py keep_diagnostics_fast), so
+    it works for viewers too, who can't POST; it stops when the page closes."""
+    request.app.state.device_link.keep_diagnostics_fast()
+    state = device_state
+    return {
+        # The server's clock, so the page can age an event against the same
+        # clock that stamped it instead of the viewer's.
+        "now": time.time(),
+        "online": state.online,
+        "link_connected": state.link_connected,
+        "diagnostics": state.diagnostics.model_dump() if state.diagnostics else None,
+        # None with a report = only the retained copy from before we connected.
+        "diagnostics_age_seconds": state.diagnostics_age(),
+        "sensors": state.sensors.model_dump() if state.sensors else None,
+        "sensors_age_seconds": state.sensors_age(),
+        "presses": [p.model_dump() for p in list(state.presses)[:RECENT_INPUT_EVENTS]],
+        "stick_events": [e.model_dump() for e in list(state.stick_events)[:RECENT_INPUT_EVENTS]],
+        "sounds": list(get_args(SoundName)),
     }
 
 
