@@ -8,12 +8,9 @@ import {
   CircleCheck,
   CircleHelp,
   Cpu,
-  Droplets,
   Gamepad2,
   Grid2x2,
   MousePointerClick,
-  Sun,
-  Thermometer,
   Volume2,
   type LucideIcon,
 } from 'lucide-react'
@@ -84,7 +81,6 @@ export function DiagnosticsView({ data, canEdit }: { data: DiagnosticsResponse; 
         // tick from last week doesn't read as "fine". The note above says why in words.
         <div className={cn('grid gap-4', !live && 'grayscale')}>
           <HardwareCard report={d} />
-          <SensorsCard data={data} />
           <ButtonsCard data={data} report={d} />
           <StickCard data={data} report={d} />
         </div>
@@ -106,7 +102,7 @@ function StatusCard({ data }: { data: DiagnosticsResponse }) {
   const rssi = d?.wifi?.rssi
   const word = signalWord(rssi)
   return (
-    <SectionCard icon={Cpu} title="Device" aside={<StatusPill status={status} label={label} />}>
+    <SectionCard icon={Cpu} title="Connection" aside={<StatusPill status={status} label={label} />}>
       <CardContent className="px-4 py-4 sm:px-6">
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Fact label="Running for" value={uptimeLabel(d?.uptime_s)} hint="A small number means it just restarted." />
@@ -189,38 +185,6 @@ function HardwareCard({ report }: { report: DiagnosticsReport }) {
         })}
       </ul>
     </SectionCard>
-  )
-}
-
-function SensorsCard({ data }: { data: DiagnosticsResponse }) {
-  const s = data.sensors
-  const f = s?.temperature_c == null ? null : (s.temperature_c * 9) / 5 + 32
-  return (
-    <SectionCard icon={Thermometer} title="Sensors" description="The same readings the Device page shows.">
-      <CardContent className="px-4 py-4 sm:px-6">
-        <dl className="grid grid-cols-3 gap-3">
-          <Sensor icon={Thermometer} label="Temperature" value={s?.temperature_c == null ? null : `${s.temperature_c.toFixed(1)} °C`} extra={f === null ? null : `${f.toFixed(1)} °F`} />
-          <Sensor icon={Droplets} label="Humidity" value={s?.humidity == null ? null : `${Math.round(s.humidity)}%`} />
-          <Sensor icon={Sun} label="Light" value={s?.lux == null ? null : `${s.lux.toFixed(1)} lx`} />
-        </dl>
-      </CardContent>
-    </SectionCard>
-  )
-}
-
-function Sensor({ icon: Icon, label, value, extra }: { icon: LucideIcon; label: string; value: string | null; extra?: string | null }) {
-  return (
-    <div className="grid gap-0.5 rounded-lg bg-muted/50 px-4 py-3">
-      <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Icon className="size-3.5" aria-hidden="true" /> {label}
-      </dt>
-      {value === null ? (
-        <dd className="text-sm font-semibold text-muted-foreground">No reading</dd>
-      ) : (
-        <dd className="text-lg font-semibold tabular-nums">{value}</dd>
-      )}
-      {extra && <dd className="text-xs text-muted-foreground tabular-nums">{extra}</dd>}
-    </div>
   )
 }
 

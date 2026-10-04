@@ -59,12 +59,6 @@ describe('DiagnosticsView', () => {
     expect(checks.getAllByText('Answering')).toHaveLength(3)
   })
 
-  it('says “No reading” for a sensor that has none', () => {
-    show()
-    expect(screen.getByText('21.5 °C')).toBeInTheDocument()
-    expect(screen.getByText('No reading')).toBeInTheDocument()
-  })
-
   it('lights held and just-pressed buttons', () => {
     show({
       diagnostics: { ...base.diagnostics!, buttons_down: [2] },
