@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { BedDouble, Droplets, Hand, Hourglass, House, SlidersHorizontal, Save, Server, Sun, Thermometer, Unplug, Volume2, Wifi, WifiOff, type LucideIcon } from 'lucide-react'
+import { BedDouble, Droplets, Hand, Hourglass, House, PersonStanding, SlidersHorizontal, Save, Server, Sun, Thermometer, Unplug, Volume2, Wifi, WifiOff, type LucideIcon } from 'lucide-react'
 import { ButtonsGraphic, FlowArrow, FlowChip, FlowNode, FlowPanel } from '@/components/flow'
 import { GuideCard, GuideSection } from '@/components/guide-card'
 import { cn } from '@/lib/utils'
@@ -17,7 +17,7 @@ export function DeviceGuide({ defaultOpen = true, id }: { defaultOpen?: boolean;
         <FlowPanel
           n={1}
           title="It reports"
-          summary="The device sends its temperature, humidity and light readings, and every button press, to this server over MQTT."
+          summary="The device sends its temperature, humidity, light and motion readings, and every button press, to this server over MQTT."
         >
           <div className="flex w-full flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
             <div className="grid gap-2 rounded-lg border bg-card p-3">
@@ -28,6 +28,7 @@ export function DeviceGuide({ defaultOpen = true, id }: { defaultOpen?: boolean;
                 <FlowChip icon={Thermometer} label="Temp" />
                 <FlowChip icon={Droplets} label="Humidity" />
                 <FlowChip icon={Sun} label="Light" />
+                <FlowChip icon={PersonStanding} label="Motion" />
                 <FlowChip icon={Hand} label="Presses" />
               </div>
             </div>

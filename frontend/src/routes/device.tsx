@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Activity, Droplets, Loader2, Monitor, MousePointerClick, Moon, Sun, SunDim, Thermometer, Volume2, type LucideIcon } from 'lucide-react'
+import { Activity, Droplets, Loader2, Monitor, MousePointerClick, Moon, PersonStanding, Sun, SunDim, Thermometer, Volume2, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Collapse, InfoToggle } from '@/components/disclosure'
 import { AboutLink } from '@/components/about-link'
@@ -80,16 +80,17 @@ function ReadingsCard({ data }: { data: DeviceResponse }) {
           <Reading icon={Thermometer} label="Temperature" value={fmt(s?.temperature_c, ' °C', 1)} extra={tempF !== null ? fmt(tempF, ' °F', 1) : null} />
           <Reading icon={Droplets} label="Humidity" value={fmt(s?.humidity, '%')} />
           <Reading icon={Sun} label="Light" value={fmt(s?.lux, ' lx', 1)} />
-          <Reading icon={Monitor} label="Screen" value={s?.screen ? SCREEN_LABEL[s.screen] : '—'} />
+          <Reading icon={PersonStanding} label="Motion" value={s?.motion == null ? '—' : s.motion ? 'Detected' : 'None'} />
+          <Reading icon={Monitor} label="Screen" value={s?.screen ? SCREEN_LABEL[s.screen] : '—'} className="col-span-2" />
         </dl>
       </CardContent>
     </SectionCard>
   )
 }
 
-function Reading({ icon: Icon, label, value, extra }: { icon: LucideIcon; label: string; value: string; extra?: string | null }) {
+function Reading({ icon: Icon, label, value, extra, className }: { icon: LucideIcon; label: string; value: string; extra?: string | null; className?: string }) {
   return (
-    <div className="grid gap-0.5 rounded-lg bg-muted/50 px-4 py-3">
+    <div className={cn('grid gap-0.5 rounded-lg bg-muted/50 px-4 py-3', className)}>
       <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Icon className="size-3.5" aria-hidden="true" /> {label}
       </dt>

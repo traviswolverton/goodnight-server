@@ -11,6 +11,7 @@ import {
   Gamepad2,
   Grid2x2,
   MousePointerClick,
+  PersonStanding,
   Volume2,
   type LucideIcon,
 } from 'lucide-react'
@@ -83,6 +84,7 @@ export function DiagnosticsView({ data, canEdit }: { data: DiagnosticsResponse; 
           <HardwareCard report={d} />
           <ButtonsCard data={data} report={d} />
           <StickCard data={data} report={d} />
+          <MotionCard report={d} />
         </div>
       )}
       {canEdit ? (
@@ -293,6 +295,35 @@ function StickCard({ data, report }: { data: DiagnosticsResponse; report: Diagno
             </div>
           )}
         </div>
+      </CardContent>
+    </SectionCard>
+  )
+}
+
+function MotionCard({ report }: { report: DiagnosticsReport }) {
+  const motion = report.motion ?? null
+  return (
+    <SectionCard
+      icon={PersonStanding}
+      title="Motion sensor"
+      description="Wave a hand in front of it. It has no self-check: a quiet room and a missing sensor look the same."
+    >
+      <CardContent className="grid gap-3 px-4 py-4 sm:px-6">
+        <div
+          aria-label={`Motion: ${motion === null ? 'not reported' : motion ? 'detected' : 'none'}`}
+          className={cn(
+            'flex items-center gap-3 rounded-lg border px-4 py-3 transition-colors',
+            motion ? 'border-primary bg-primary text-primary-foreground' : 'bg-muted/40 text-muted-foreground',
+          )}
+        >
+          <PersonStanding className="size-6" aria-hidden="true" />
+          <span className="text-lg font-semibold">{motion === null ? 'Not reported' : motion ? 'Motion detected' : 'No motion'}</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {motion === null
+            ? 'This firmware doesn’t report the motion sensor.'
+            : 'It should light up when you move in front of it and go quiet 2 to 3 seconds after you stop. It ignores the first 10 seconds after power-up while it settles. If it never lights up, check its OUT wire (pin D18), power and ground.'}
+        </p>
       </CardContent>
     </SectionCard>
   )

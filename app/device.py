@@ -170,6 +170,8 @@ class SensorReading(BaseModel):
     humidity: float | None = None
     lux: float | None = None
     screen: Literal["off", "dim", "full"] | None = None
+    motion: bool | None = None
+    """The PIR's output right now. None from firmware that predates it."""
 
 
 class ButtonPressMessage(BaseModel):
@@ -228,6 +230,7 @@ class DiagnosticsMessage(BaseModel):
     setup_mode: bool = False
     wifi: WifiInfo | None = None
     hardware: HardwareFlags | None = None
+    motion: bool | None = None
     stick: StickState | None = None
     buttons_down: list[Annotated[int, Field(ge=1, le=NUM_BUTTONS)]] = Field(default_factory=list)
 

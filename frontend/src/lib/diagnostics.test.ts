@@ -9,6 +9,7 @@ const report: DiagnosticsResponse['diagnostics'] = {
   setup_mode: false,
   wifi: { rssi: -45, ip: '192.0.2.87' },
   hardware: { oled: true, light: true, expander: true, joystick: true, climate: true },
+  motion: false,
   stick: { x: 1910, y: 1902, direction: 'none', pressed: false },
   buttons_down: [],
 }

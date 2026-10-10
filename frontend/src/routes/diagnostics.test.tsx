@@ -15,11 +15,12 @@ const base: DiagnosticsResponse = {
     setup_mode: false,
     wifi: { rssi: -45, ip: '192.0.2.87' },
     hardware: { oled: true, light: true, expander: true, joystick: true, climate: true },
+    motion: false,
     stick: { x: 1910, y: 1902, direction: 'none', pressed: false },
     buttons_down: [],
   },
   diagnostics_age_seconds: 1,
-  sensors: { temperature_c: 21.5, humidity: 44, lux: null, screen: 'full' },
+  sensors: { temperature_c: 21.5, humidity: 44, lux: null, screen: 'full', motion: false },
   sensors_age_seconds: 1,
   presses: [],
   stick_events: [],
@@ -57,6 +58,15 @@ describe('DiagnosticsView', () => {
     const checks = within(screen.getByRole('list', { name: 'Hardware checks' }))
     expect(checks.getByText(/the 8 buttons and the stick press can’t be read/)).toBeInTheDocument()
     expect(checks.getAllByText('Answering')).toHaveLength(3)
+  })
+
+  it('shows the motion sensor, and says when the firmware doesn’t report it', () => {
+    const first = show({ diagnostics: { ...base.diagnostics!, motion: true } })
+    expect(screen.getByLabelText('Motion: detected')).toBeInTheDocument()
+    first.unmount()
+    show({ diagnostics: { ...base.diagnostics!, motion: null } })
+    expect(screen.getByLabelText('Motion: not reported')).toBeInTheDocument()
+    expect(screen.getByText(/doesn’t report the motion sensor/)).toBeInTheDocument()
   })
 
   it('lights held and just-pressed buttons', () => {

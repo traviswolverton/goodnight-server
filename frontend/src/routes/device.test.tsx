@@ -13,7 +13,7 @@ vi.mock('sonner', () => ({ toast }))
 const data: DeviceResponse = {
   online: true,
   link_connected: true,
-  sensors: { temperature_c: 21, humidity: 40, lux: 5, screen: 'dim' },
+  sensors: { temperature_c: 21, humidity: 40, lux: 5, screen: 'dim', motion: true },
   sensors_age_seconds: 3,
   presses: [],
   config: {

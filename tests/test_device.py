@@ -126,6 +126,16 @@ async def test_sensors_and_availability_are_recorded(paths, state):
     assert state.online is False
 
 
+async def test_motion_is_recorded_and_older_firmware_leaves_it_unknown(paths, state):
+    link = _link(paths, state)
+    await link.handle(settings.mqtt_sensors_topic, b'{"lux":3.5,"screen":"off","motion":true}')
+    assert state.sensors.motion is True
+    await link.handle(settings.mqtt_sensors_topic, b'{"lux":3.5,"screen":"off"}')
+    assert state.sensors.motion is None
+    await link.handle(settings.mqtt_diagnostics_topic, b'{"uptime_s":7,"motion":false}')
+    assert state.diagnostics.motion is False
+
+
 @pytest.mark.parametrize("topic,payload", [
     ("sensors", b"not json"),
     ("sensors", b'{"screen":"blinding"}'),

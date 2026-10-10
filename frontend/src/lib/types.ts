@@ -124,6 +124,8 @@ export interface SensorReading {
   humidity: number | null
   lux: number | null
   screen: 'off' | 'dim' | 'full' | null
+  /** The PIR's output right now; null from firmware that predates it. */
+  motion: boolean | null
 }
 export interface ButtonPress {
   button: number
@@ -150,6 +152,8 @@ export interface DiagnosticsReport {
   setup_mode: boolean
   wifi: { rssi: number | null; ip: string | null } | null
   hardware: DiagnosticsHardware | null
+  /** The PIR's output right now. It has no boot check: a quiet room and a missing sensor look alike. */
+  motion: boolean | null
   /** x and y are raw 12-bit readings, null when there's no joystick. */
   stick: { x: number | null; y: number | null; direction: string; pressed: boolean } | null
   buttons_down: number[]

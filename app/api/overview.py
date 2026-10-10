@@ -46,8 +46,9 @@ async def mqtt_reference() -> dict[str, object]:
                       "(failures) play at full volume even in the dark.",
              "example": {"sound": "armed", "urgent": False}},
             {"topic": settings.mqtt_sensors_topic, "direction": "device → server", "retained": True,
-             "about": "Room readings and the screen level, every 30 s. null for a sensor with no reading.",
-             "example": {"temperature_c": 21.5, "humidity": 44, "lux": 3.5, "screen": "off"}},
+             "about": "Room readings, the screen level and whether the motion sensor sees anything, every "
+                      "30 s and when motion starts or stops. null for a sensor with no reading.",
+             "example": {"temperature_c": 21.5, "humidity": 44, "lux": 3.5, "screen": "off", "motion": False}},
             {"topic": settings.mqtt_button_topic, "direction": "device → server", "retained": False,
              "about": "A button press. What it does is decided here (Buttons page).",
              "example": {"button": 3, "press": "long"}},

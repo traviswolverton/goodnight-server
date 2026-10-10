@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Droplets, Sun, Thermometer, type LucideIcon } from 'lucide-react'
+import { Droplets, PersonStanding, Sun, Thermometer, type LucideIcon } from 'lucide-react'
 import { StatusGlyph } from '@/components/status-pill'
 import { deviceStatus } from '@/lib/device'
 import { deviceQuery } from '@/lib/queries'
@@ -21,11 +21,13 @@ export function DeviceReadings() {
   const temp = c == null ? null : { c: c.toFixed(1), f: ((c * 9) / 5 + 32).toFixed(1) }
   const humidity = s?.humidity == null ? null : `${Math.round(s.humidity)}%`
   const lux = s?.lux == null ? null : `${s.lux.toFixed(1)}`
+  const motion = s?.motion ?? null
   const spoken = [
     `Device: ${label}`,
     temp ? `temperature ${temp.c} °C` : null,
     humidity ? `humidity ${humidity}` : null,
     lux ? `light ${lux} lx` : null,
+    motion === null ? null : motion ? 'motion detected' : 'no motion',
   ]
     .filter(Boolean)
     .join(', ')
@@ -56,6 +58,9 @@ export function DeviceReadings() {
           {lux ?? dash}
           {lux && <span className="max-sm:hidden"> lx</span>}
         </Item>
+        {motion !== null && (
+          <PersonStanding className={cn('size-3.5 shrink-0 sm:size-4', motion ? 'text-primary' : 'text-muted-foreground/40')} />
+        )}
       </span>
     </Link>
   )
