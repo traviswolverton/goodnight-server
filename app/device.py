@@ -322,6 +322,21 @@ def ha_discovery_messages(prefix: str) -> list[tuple[str, str]]:
             "availability_topic": settings.mqtt_availability_topic,
             "device": HA_DEVICE,
         })))
+    # The PIR is a binary sensor. Old firmware has no `motion` key, and a
+    # null one means unknown: both render "None", which HA shows as
+    # unknown rather than a false "clear".
+    messages.append((f"{prefix}/binary_sensor/bedside_dashboard/motion/config", json.dumps({
+        "name": "Motion",
+        "unique_id": "bedside_dashboard_motion",
+        "state_topic": settings.mqtt_sensors_topic,
+        "value_template": ("{% if value_json.motion is true %}ON{% elif value_json.motion is false %}OFF"
+                           "{% else %}None{% endif %}"),
+        "payload_on": "ON",
+        "payload_off": "OFF",
+        "device_class": "motion",
+        "availability_topic": settings.mqtt_availability_topic,
+        "device": HA_DEVICE,
+    })))
     # Device triggers match the payload exactly, so these must be
     # byte-for-byte what the firmware sends (main.cpp publishButton).
     for button in range(1, NUM_BUTTONS + 1):

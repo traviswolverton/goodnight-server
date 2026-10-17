@@ -295,7 +295,7 @@ async def test_sounds_without_a_connection_are_dropped_quietly(paths, state):
 
 # --- Home Assistant discovery ----------------------------------------------------
 
-def test_discovery_announces_three_sensors_and_a_trigger_per_press():
+def test_discovery_announces_three_sensors_a_motion_sensor_and_a_trigger_per_press():
     messages = dict(ha_discovery_messages("homeassistant"))
     sensors = [t for t in messages if "/sensor/" in t]
     triggers = [t for t in messages if "/device_automation/" in t]
@@ -306,6 +306,23 @@ def test_discovery_announces_three_sensors_and_a_trigger_per_press():
     assert temp["value_template"] == "{{ value_json.temperature_c }}"
     assert temp["availability_topic"] == "bedside/availability"
     assert temp["device_class"] == "temperature"
+
+    motion = json.loads(messages["homeassistant/binary_sensor/bedside_dashboard/motion/config"])
+    assert motion["device_class"] == "motion" and motion["state_topic"] == "bedside/sensors"
+    assert motion["availability_topic"] == "bedside/availability"
+    assert sum("/binary_sensor/" in t for t in messages) == 1
+
+
+def test_the_motion_template_says_unknown_rather_than_clear_without_a_reading():
+    """Rendered the way HA does: true -> ON, false -> OFF, absent or null -> "None"."""
+    from jinja2 import Environment
+    messages = dict(ha_discovery_messages("homeassistant"))
+    template = Environment().from_string(json.loads(
+        messages["homeassistant/binary_sensor/bedside_dashboard/motion/config"])["value_template"])
+    assert template.render(value_json={"motion": True}) == "ON"
+    assert template.render(value_json={"motion": False}) == "OFF"
+    assert template.render(value_json={"motion": None}) == "None"
+    assert template.render(value_json={"lux": 1}) == "None"
 
 
 def test_trigger_payloads_match_what_the_firmware_sends_byte_for_byte():

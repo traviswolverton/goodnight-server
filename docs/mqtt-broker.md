@@ -46,6 +46,7 @@ topic read bedside/availability
 topic read bedside/diagnostics
 topic read bedside/stick
 topic write homeassistant/sensor/bedside_dashboard/#
+topic write homeassistant/binary_sensor/bedside_dashboard/#
 topic write homeassistant/device_automation/bedside_dashboard/#
 
 user bedside-esp32
@@ -63,7 +64,7 @@ Then reload the broker (`kill -HUP` its process, or restart it). Home
 Assistant's own account needs read access to `bedside/sensors`,
 `bedside/button`, `bedside/availability` and `homeassistant/#` — normally
 it already has everything. If `HA_DISCOVERY_PREFIX` isn't `homeassistant`,
-change the two discovery lines to match.
+change the three discovery lines to match.
 
 The account names differ from the desk dashboard's (`aggregator`,
 `esp32-client`) on purpose: account names are global on a shared broker.
