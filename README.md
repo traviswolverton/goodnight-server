@@ -3,12 +3,17 @@
 The bedside sibling of [desk-dashboard-server](https://github.com/traviswolverton/desk-dashboard-server),
 forked with full history (`upstream` remote), for a nightstand ESP32
 ([bedside-dashboard-esp32](https://github.com/traviswolverton/bedside-dashboard-esp32))
-with a 128×32 OLED, 8 buttons, a joystick, a piezo buzzer, and
+with a 128×32 OLED, 8 buttons (7 of them bindable; the eighth is the
+device's own), a joystick, a piezo buzzer, a motion sensor, and
 light/temperature/humidity sensors. Where the desk server shows homelab status
 cards, this one turns button presses into Home Assistant actions — with a
 confirm press, a check that it really happened, and a sound for each step —
-and looks after the device itself: its **Device** page (readings, the
-light-following dimmer, the buzzer) and **Buttons** page.
+and looks after the device itself: its **Device** page (readings including
+the motion sensor, the light-following dimmer, an idle screen-off timer, the
+buzzer), its **Buttons** page, and a **Diagnostics** page that shows the
+device's own hardware checks, joystick and buttons live, for finding a loose
+wire without a serial cable. It also announces the device's sensors and
+button presses to Home Assistant over MQTT discovery.
 
 - **Web UI** — React (`frontend/`), served by the same container.
 - **API** — FastAPI (`app/`): runs Actions through Home Assistant's REST
@@ -19,7 +24,7 @@ light-following dimmer, the buzzer) and **Buttons** page.
   [`docs/mqtt-broker.md`](docs/mqtt-broker.md)), or a bundled Mosquitto via the
   `local-mqtt` compose profile.
 
-Design and history: [`DESIGN.md`](DESIGN.md) · UI/auth plan and what was built: [`docs/plan-ui-and-auth.md`](docs/plan-ui-and-auth.md) ·
+Design and history: [`DESIGN.md`](DESIGN.md) ·
 exposing it beyond your LAN: [`docs/reverse-proxy.md`](docs/reverse-proxy.md).
 
 ## Run it

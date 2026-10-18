@@ -5,7 +5,8 @@ A template sees two things:
   - `states['<entity_id>']`: each Home Assistant entity (app.home_assistant.
     entity_view): `.state` (always a string), `.name`, `.unit`, `.domain`,
     `.attributes`, `.last_changed`.
-  - `device`: the bedside device's own readings (`device.temperature_c`).
+  - `device`: the bedside device's own readings (`device.temperature_c`,
+    `device.motion`...).
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ def device_context(state: DeviceState, now: float | None = None) -> dict[str, ob
         "humidity": reading.humidity if reading else None,
         "lux": reading.lux if reading else None,
         "screen": reading.screen if reading else None,
+        "motion": reading.motion if reading else None,
         "online": bool(state.online),
         "last_report_seconds": int(age) if age is not None else None,
     }

@@ -15,15 +15,17 @@ def _device(**reading) -> DeviceState:
 
 
 def test_device_context_has_the_readings_and_fahrenheit_too():
-    context = device_context(_device(temperature_c=21.5, humidity=44, lux=3.5, screen="dim"), now=1012.0)
+    context = device_context(_device(temperature_c=21.5, humidity=44, lux=3.5, screen="dim",
+                                         motion=True), now=1012.0)
     assert context == {"temperature_c": 21.5, "temperature_f": 70.7, "humidity": 44, "lux": 3.5,
-                       "screen": "dim", "online": True, "last_report_seconds": 12}
+                       "screen": "dim", "motion": True, "online": True, "last_report_seconds": 12}
 
 
 def test_device_context_before_any_report_is_all_blank():
     context = device_context(DeviceState())
     assert context["temperature_c"] is None and context["temperature_f"] is None
     assert context["online"] is False and context["last_report_seconds"] is None
+    assert context["motion"] is None
 
 
 def test_a_template_reads_entity_states_and_device_readings():
