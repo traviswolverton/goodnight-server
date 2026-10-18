@@ -361,6 +361,6 @@ profile) is likewise published on all interfaces, on host port 1884.
 - Live mirror of the device's 128×32 OLED in the web UI: the device
   publishes its real framebuffer on `bedside/screen` and the Device page
   draws it, so icons and layouts added later just appear — see
-  `docs/plan-screen-rendering.md`. Decided 2026-09-29, not yet implemented
-  (the device is built and running; its screen is now one big line, so that
-  plan's font and layout details are out of date).
+  `docs/plan-screen-rendering.md`. Decided 2026-09-29, not yet implemented;
+  the plan was brought up to date on 2026-10-18 for the current one-line
+  clock screen.
