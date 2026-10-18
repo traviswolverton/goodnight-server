@@ -15,3 +15,6 @@ mosquitto/config/passwd
 # (see docker-compose.yml); this only guards a local dev copy. Templates
 # live in config.example/.
 config/
+
+# Claude Code local state and session worktrees
+.claude/
