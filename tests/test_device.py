@@ -80,7 +80,7 @@ def test_a_broken_file_falls_back_to_defaults(paths):
 
 
 @pytest.mark.parametrize("dimmer", [{"dark_lux": 30}, {"bright_lux": -1}, {"dim_contrast": 256},
-                                    {"wake_seconds": 1}])
+                                    {"wake_seconds": 1}, {"idle_off_minutes": -1}, {"idle_off_minutes": 1441}])
 def test_invalid_dimmer_settings_are_rejected(dimmer):
     with pytest.raises(ValueError):
         DimmerConfig(**dimmer)
@@ -95,7 +95,8 @@ def test_buttons_outside_1_to_8_are_rejected(button):
 def test_the_device_gets_the_dimmer_and_sounds_never_the_bindings():
     config = DeviceConfig(buttons={1: ButtonBinding(short="desk_lamp")})
     assert json.loads(device_config_payload(config)) == {
-        "dimmer": {"bright_lux": 20.0, "dark_lux": 2.0, "dim_contrast": 1, "wake_seconds": 15},
+        "dimmer": {"bright_lux": 20.0, "dark_lux": 2.0, "dim_contrast": 1, "wake_seconds": 15,
+                   "idle_off_minutes": 15},
         "sounds": {"enabled": True, "volume": 80, "dark_volume": 10}}
 
 
@@ -382,7 +383,8 @@ def test_api_save_writes_the_file_and_sends_it_to_the_device(paths, state):
     device, actions = paths
     save_action(str(actions), _lamp())
     client, link = _client(paths)
-    body = {"dimmer": {"bright_lux": 40, "dark_lux": 4, "dim_contrast": 10, "wake_seconds": 30},
+    body = {"dimmer": {"bright_lux": 40, "dark_lux": 4, "dim_contrast": 10, "wake_seconds": 30,
+                       "idle_off_minutes": 0},
             "sounds": {"enabled": True, "volume": 60, "dark_volume": 0},
             "buttons": {"2": {"short": "desk_lamp"}}}
     resp = client.put("/api/device/config", json=body)
@@ -390,6 +392,7 @@ def test_api_save_writes_the_file_and_sends_it_to_the_device(paths, state):
     assert link.published == 1
     saved = load_device_config(str(device))
     assert saved.dimmer.bright_lux == 40 and saved.binding(2, "short") == "desk_lamp"
+    assert saved.dimmer.idle_off_minutes == 0  # 0 = never, and it survives the round trip
     assert saved.sounds == SoundConfig(volume=60, dark_volume=0)
 
 

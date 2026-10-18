@@ -79,6 +79,10 @@ class DimmerConfig(BaseModel):
     """Brightness between the two thresholds, and when woken in the dark."""
     wake_seconds: int = Field(15, ge=3, le=600)
     """How long a touch keeps the screen on in the dark."""
+    idle_off_minutes: int = Field(15, ge=0, le=1440)
+    """Minutes with no touch and no movement before the screen turns off,
+    whatever the room light. 0 means never. Mirrors the firmware's
+    DimmerSettings (include/dimmer.h)."""
 
     @model_validator(mode="after")
     def _dark_below_bright(self) -> "DimmerConfig":

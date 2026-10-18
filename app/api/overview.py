@@ -39,7 +39,8 @@ async def mqtt_reference() -> dict[str, object]:
         "topics": [
             {"topic": settings.mqtt_device_config_topic, "direction": "server → device", "retained": True,
              "about": "The screen dimmer and buzzer settings (Device page).",
-             "example": {"dimmer": {"bright_lux": 20, "dark_lux": 2, "dim_contrast": 1, "wake_seconds": 15},
+             "example": {"dimmer": {"bright_lux": 20, "dark_lux": 2, "dim_contrast": 1, "wake_seconds": 15,
+                                    "idle_off_minutes": 15},
                          "sounds": {"enabled": True, "volume": 80, "dark_volume": 10}}},
             {"topic": settings.mqtt_sound_topic, "direction": "server → device", "retained": False,
              "about": "A sound to play now: armed, running, success, failure or cancel. Urgent ones "

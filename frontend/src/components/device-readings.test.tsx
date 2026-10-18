@@ -15,7 +15,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 const base: DeviceResponse = {
   online: true, link_connected: true, sensors: { temperature_c: 21.44, humidity: 40.6, lux: 6.5, screen: 'dim', motion: false }, sensors_age_seconds: 3,
-  presses: [], config: { dimmer: { bright_lux: 20, dark_lux: 2, dim_contrast: 1, wake_seconds: 15 }, sounds: { enabled: true, volume: 80, dark_volume: 10 }, buttons: {} },
+  presses: [], config: { dimmer: { bright_lux: 20, dark_lux: 2, dim_contrast: 1, wake_seconds: 15, idle_off_minutes: 15 }, sounds: { enabled: true, volume: 80, dark_volume: 10 }, buttons: {} },
   actions: [], num_buttons: 8, confirm_seconds: 5, sounds: [], ha_discovery: true,
 }
 const fetchMock = vi.fn<typeof fetch>()

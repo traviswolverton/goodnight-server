@@ -5,6 +5,7 @@ dimmer:
   dark_lux: 2         # below: screen off until a control is touched
   dim_contrast: 1     # 0-255, used between the two and when woken in the dark
   wake_seconds: 15    # how long a touch keeps it on in the dark
+  idle_off_minutes: 15  # screen off after this long with no touch or movement; 0 = never
 # Which Action (actions.yaml id) each button runs. Presses on unbound
 # buttons are still shown on the Device page and still reach Home Assistant.
 buttons:

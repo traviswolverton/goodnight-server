@@ -149,6 +149,7 @@ const DIMMER_FIELDS: { key: keyof DimmerConfig; label: string; help: string; ste
   { key: 'dark_lux', label: 'Screen off below (lux)', help: 'Below this, a press wakes it. Must not be above the full-brightness level.', step: '0.5', min: 0, max: 65000 },
   { key: 'dim_contrast', label: 'Dimmed brightness (0–255)', help: 'Used between the two levels, and when woken in the dark.', step: '1', min: 0, max: 255 },
   { key: 'wake_seconds', label: 'Stay on after a press (seconds)', help: 'In the dark, before it turns off again.', step: '1', min: 3, max: 600 },
+  { key: 'idle_off_minutes', label: 'Turn the screen off after (minutes)', help: 'With no touch and no movement, whatever the room light. 0 never turns it off.', step: '1', min: 0, max: 1440 },
 ]
 
 const SOUND_FIELDS: { key: 'volume' | 'dark_volume'; label: string; help: string }[] = [
@@ -183,6 +184,7 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
     dark_lux: String(data.config.dimmer.dark_lux),
     dim_contrast: String(data.config.dimmer.dim_contrast),
     wake_seconds: String(data.config.dimmer.wake_seconds),
+    idle_off_minutes: String(data.config.dimmer.idle_off_minutes),
   }
   const initialVolumes = { volume: String(data.config.sounds.volume), dark_volume: String(data.config.sounds.dark_volume) }
   const [dimmer, setDimmer] = useState<Record<keyof DimmerConfig, string>>(initialDimmer)
@@ -195,6 +197,7 @@ export function SettingsForm({ data, canEdit }: { data: DeviceResponse; canEdit:
     dark_lux: Number(dimmer.dark_lux),
     dim_contrast: Number(dimmer.dim_contrast),
     wake_seconds: Number(dimmer.wake_seconds),
+    idle_off_minutes: Number(dimmer.idle_off_minutes),
   }
   const invalid = DIMMER_FIELDS.find(
     (f) => dimmer[f.key].trim() === '' || !Number.isFinite(parsed[f.key]) || parsed[f.key] < f.min || parsed[f.key] > f.max,
@@ -360,6 +363,7 @@ function ScreenLevels({ dimmer, valid, current, lux }: { dimmer: DimmerConfig; v
             </>
           )}
           A press wakes an off screen for {dimmer.wake_seconds} s.
+          {Number(dimmer.idle_off_minutes) > 0 && <> It also turns off after {dimmer.idle_off_minutes} min with no touch or movement.</>}
         </p>
       )}
     </div>

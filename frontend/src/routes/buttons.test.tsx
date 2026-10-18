@@ -17,7 +17,7 @@ const data: DeviceResponse = {
   sensors_age_seconds: null,
   presses: [{ button: 6, press: 'long', at: Date.now() / 1000 - 2, action: null, ok: null, text: null }],
   config: {
-    dimmer: { bright_lux: 20, dark_lux: 2, dim_contrast: 1, wake_seconds: 15 },
+    dimmer: { bright_lux: 20, dark_lux: 2, dim_contrast: 1, wake_seconds: 15, idle_off_minutes: 15 },
     sounds: { enabled: true, volume: 80, dark_volume: 10 },
     buttons: { '1': { short: 'lamp', long: 'garage' }, '8': { short: 'lamp' } },
   },

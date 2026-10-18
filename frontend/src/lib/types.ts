@@ -99,6 +99,8 @@ export interface DimmerConfig {
   dark_lux: number
   dim_contrast: number
   wake_seconds: number
+  /** Minutes with no touch or movement before the screen turns off; 0 = never. */
+  idle_off_minutes: number
 }
 export interface SoundConfig {
   enabled: boolean

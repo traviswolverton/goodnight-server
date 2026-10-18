@@ -17,7 +17,7 @@ const data: DeviceResponse = {
   sensors_age_seconds: 3,
   presses: [],
   config: {
-    dimmer: { bright_lux: 20, dark_lux: 2, dim_contrast: 1, wake_seconds: 15 },
+    dimmer: { bright_lux: 20, dark_lux: 2, dim_contrast: 1, wake_seconds: 15, idle_off_minutes: 15 },
     sounds: { enabled: true, volume: 80, dark_volume: 10 },
     buttons: { '3': { short: 'lamp' } },
   },
@@ -76,7 +76,7 @@ describe('SettingsForm', () => {
     expect(url).toBe('/api/device/config')
     expect(init?.method).toBe('PUT')
     expect(JSON.parse(init?.body as string)).toEqual({
-      dimmer: { bright_lux: 40, dark_lux: 2, dim_contrast: 1, wake_seconds: 15 },
+      dimmer: { bright_lux: 40, dark_lux: 2, dim_contrast: 1, wake_seconds: 15, idle_off_minutes: 15 },
       sounds: { enabled: true, volume: 80, dark_volume: 10 },
     })
   })
@@ -101,6 +101,23 @@ describe('SettingsForm', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Volume (0–100): enter a whole number from 0 to 100.')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('saves 0 for never turning the screen off, and refuses more than a day', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    const idle = screen.getByLabelText('Turn the screen off after (minutes)')
+    await user.clear(idle)
+    await user.type(idle, '1500')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Turn the screen off after (minutes): enter a number from 0 to 1440.')
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    await user.clear(idle)
+    await user.type(idle, '0')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string).dimmer.idle_off_minutes).toBe(0)
   })
 
   it('plays a test sound on the device', async () => {

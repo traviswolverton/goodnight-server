@@ -27,7 +27,7 @@ snapshots): homelab services rendered as cards. The bedside unit isn't — see
 
 | Topic | Direction | Retained | |
 |---|---|---|---|
-| `bedside/config` | server → device | yes | dimmer thresholds and buzzer volumes, from `config/device.yaml` |
+| `bedside/config` | server → device | yes | dimmer thresholds (including `idle_off_minutes`: screen off after that long with no touch or PIR movement, 0 = never) and buzzer volumes, from `config/device.yaml` |
 | `bedside/sensors` | device → server | yes | `{"temperature_c", "humidity", "lux", "screen", "motion"}` every 30s and when motion starts or stops |
 | `bedside/button` | device → server | no | `{"button": 1-8, "press": "short"\|"long"}` |
 | `bedside/availability` | device → server | yes | `online` / `offline` (last will) |
