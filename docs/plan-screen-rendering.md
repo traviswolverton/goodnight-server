@@ -4,8 +4,9 @@
 (see "Decision"). NOT implemented yet. Written up after a planning
 discussion; the owner's answers are recorded below.
 
-Nothing here has been run: the bedside device isn't built yet (no hardware,
-no firmware flashed), so every claim about the panel is from the firmware
+Nothing here has been run, and it predates the device being built (the
+device now runs, and its screen is one big line rather than the 6×10 text
+below): every claim about the panel is from the firmware
 source (`bedside-dashboard-esp32`: `src/display.cpp`, `src/screen.cpp`,
 `include/display.h`) and from how U8g2 works, not from a running unit.
 

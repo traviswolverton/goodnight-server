@@ -19,8 +19,7 @@ light-following dimmer, the buzzer) and **Buttons** page.
   [`docs/mqtt-broker.md`](docs/mqtt-broker.md)), or a bundled Mosquitto via the
   `local-mqtt` compose profile.
 
-Design and history: [`DESIGN.md`](DESIGN.md) · data flow: [`docs/pipeline.md`](docs/pipeline.md) ·
-UI/auth plan and what was built: [`docs/plan-ui-and-auth.md`](docs/plan-ui-and-auth.md) ·
+Design and history: [`DESIGN.md`](DESIGN.md) · UI/auth plan and what was built: [`docs/plan-ui-and-auth.md`](docs/plan-ui-and-auth.md) ·
 exposing it beyond your LAN: [`docs/reverse-proxy.md`](docs/reverse-proxy.md).
 
 ## Run it

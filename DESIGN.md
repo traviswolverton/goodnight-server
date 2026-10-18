@@ -39,10 +39,10 @@ snapshots): homelab services rendered as cards. The bedside unit isn't — see
 - **Buttons are bound here, not on the device.** `config/device.yaml` maps
   each button's short/long press to an Action id; `MqttDeviceLink` runs it
   through the same `ActionRunner` (and debounce) as the web UI's Run button.
-  Bindings are edited on the web UI's **Buttons** page: a 2×4 grid laid
-  out like the device (1–4 on the top row), where a tile lights up when
-  its button is pressed, so it's easy to tell which is which. An unbound
-  press is still recorded on the Device page.
+  Bindings are edited on the web UI's **Buttons** page: a list with one
+  row per button, showing what its short and long press do. A row lights
+  up when its button is pressed, so it's easy to tell which is which. An
+  unbound press is still recorded on the Device page.
 - **Home Assistant via MQTT discovery.** On connect the server publishes,
   retained under `homeassistant/`, three sensors (temperature, humidity,
   illuminance), a motion binary sensor (the PIR; unknown, not clear, when
@@ -363,15 +363,19 @@ an error, not a blank), and a correction for a guessed field lists the
 real field names at that point of the path.
 
 ## Security / network exposure
-Both the HTTP API and MQTT broker are bound to all interfaces (Docker's
-default when a compose port mapping doesn't specify a host IP) — reachable
-by anything on the LAN, not just `localhost`. Confirmed 2026-09-16 by
-curling the host's actual LAN IP successfully. Deliberate, not accidental:
-the ESP32 client needs to reach both from elsewhere on the network.
+The HTTP API is bound to all interfaces (Docker's default when a compose
+port mapping doesn't specify a host IP, overridable with `APP_BIND`) —
+reachable by anything on the LAN, not just `localhost`. Deliberate, not
+accidental: the ESP32 has to reach it for `GET /device/config`. The MQTT
+broker is normally the central one (192.0.2.25), which the device and
+this app both reach over the LAN; the bundled broker (`local-mqtt`
+profile) is likewise published on all interfaces, on host port 1884.
 
 - **MQTT is protected** — password auth plus per-account topic ACLs:
-  `aggregator` write-only, `esp32-client` read-only (each with one Actions
-  topic the other way). Since 2026-09-28 the broker is normally the central
+  `bedside-aggregator` (this app) and `bedside-esp32` (the device) may each
+  write only their own `bedside/*` topics and read only the other's, so the
+  device's login can't change its own settings or make itself play a sound.
+  Since 2026-09-28 the broker is normally the central
   one, where those accounts and ACLs are set up by hand
   (`docs/mqtt-broker.md`); the bundled broker (`local-mqtt` profile) applies
   the same rules from `mosquitto/config/`. Verified end-to-end on the
@@ -460,13 +464,13 @@ the ESP32 client needs to reach both from elsewhere on the network.
   `docker compose up -d --build` run locally there. Building happens on
   the host's own Docker daemon — no agent tunnel involved — and relative
   bind mounts resolve correctly since the checkout actually lives where
-  Docker is running. `restart: unless-stopped` on both services handles
+  Docker is running. `restart: unless-stopped` on every service handles
   surviving a reboot; no separate systemd unit needed for the compose part
   (unlike another-stack's older Streamlit component, which predates it
   moving to compose and still runs via systemd + a venv).
 - **Config is not in git (changed 2026-09-19).** The live
   `connections.yaml`/`actions.yaml`/`device.yaml`/`secrets.enc.yaml` live in
-  `/opt/desk-dashboard-data/config` on the host, mounted at `/app/config`
+  `/opt/bedside-dashboard-data/config` on the host, mounted at `/app/config`
   — edited through the running app, so live edits never show up as git
   diffs. `config.example/` in the repo is the template for a fresh
   deploy. This replaces the earlier "gospel configs in git, secrets out
@@ -490,10 +494,10 @@ the ESP32 client needs to reach both from elsewhere on the network.
 - ~~Decide Mosquitto container config (auth, persistence, topic ACLs)~~ —
   done: password auth (`mosquitto/config/mosquitto.conf`), two accounts
   provisioned from env vars at container start (`mosquitto/entrypoint.sh`),
-  and topic ACLs (`mosquitto/config/acl.conf`) restricting `aggregator` to
-  write-only and `esp32-client` to read-only on both topics. Verified
-  end-to-end: anonymous/bad-password connections refused, and a write from
-  `esp32-client` is silently dropped by the ACL rather than reaching the
+  and topic ACLs (`mosquitto/config/acl.conf`) restricting
+  `bedside-aggregator` and `bedside-esp32` each to its own topics. Verified
+  end-to-end: anonymous/bad-password connections refused, and a write to a
+  topic the account isn't allowed is silently dropped by the ACL rather than reaching the
   topic. TLS was deliberately skipped — LAN-only broker; revisit
   if it's ever exposed beyond the LAN. (2026-09-26 added the Actions
   menu's `bedside/action` topics; removed 2026-09-29 with the menu. The
@@ -511,5 +515,6 @@ the ESP32 client needs to reach both from elsewhere on the network.
 - Live mirror of the device's 128×32 OLED in the web UI: the device
   publishes its real framebuffer on `bedside/screen` and the Device page
   draws it, so icons and layouts added later just appear — see
-  `docs/plan-screen-rendering.md`. Decided 2026-09-29, not yet implemented;
-  the server and UI parts can be built and tested before the device exists.
+  `docs/plan-screen-rendering.md`. Decided 2026-09-29, not yet implemented
+  (the device is built and running; its screen is now one big line, so that
+  plan's font and layout details are out of date).

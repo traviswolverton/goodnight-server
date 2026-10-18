@@ -1,8 +1,9 @@
 # MQTT broker
 
-The app publishes the display's status and the device's settings to an MQTT
-broker, and reads the device's sensors, button presses and Action requests
-there (`app/mqtt.py`, `app/device.py`); the ESP32 connects to the same
+The app publishes the device's settings and sounds, and its Home Assistant
+discovery messages, to an MQTT broker, and reads the device's sensors,
+button presses, diagnostics and availability there (`app/device.py`); the
+ESP32 connects to the same
 broker. By default that's your **central broker** — shared with Home
 Assistant, which is how the device's sensors and button triggers reach HA
 (MQTT discovery) with no bridge. The bundled Mosquitto container is opt-in,

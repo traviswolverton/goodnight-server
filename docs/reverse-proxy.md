@@ -27,9 +27,17 @@ Two shapes that work:
    listener for `/device/config` (see the Caddy example). More moving parts; only
    worth it if you can't firewall the port.
 
-## App settings (`.env`)
+## App settings
 
-| Variable | Set it to | Why |
+`HTTPS_ONLY` and `TRUSTED_PROXIES` are on the Settings page (Preferences →
+Sign-in and security) and take effect the moment you save, with no restart.
+They can also be set in `.env`, which the Settings page overrides once you
+save there. The Settings page only lets you turn **HTTPS only** on from a
+request that arrived over HTTPS, so set it while signed in through the proxy
+(or set it in `.env` and restart). `APP_BIND` is read by Docker Compose, so it
+stays in `.env` and needs the container recreated.
+
+| Setting | Set it to | Why |
 |---|---|---|
 | `HTTPS_ONLY` | `true` | Session cookie becomes `Secure` and `__Host-`-prefixed; `Strict-Transport-Security` is sent. With this on, **plain-HTTP logins stop working** (browsers drop the cookie) — use the HTTPS name. |
 | `TRUSTED_PROXIES` | your proxy's IP(s), comma-separated | Only then is `X-Forwarded-For` believed, so the audit log and login throttling see the real client instead of the proxy. Leave empty and every request looks like it came from the proxy — one attacker could lock everyone out. |
@@ -73,7 +81,7 @@ server {
 
 ## Checklist before you open it up
 
-- [ ] `HTTPS_ONLY=true` and `TRUSTED_PROXIES` set; app restarted.
+- [ ] `HTTPS_ONLY` and `TRUSTED_PROXIES` set (Settings page, or `.env` plus a restart).
 - [ ] The app port is **not** forwarded from your router / firewalled from WAN.
 - [ ] `ADMIN_USERNAME` / `ADMIN_PASSWORD` were only for first boot — remove
       them from `.env` (they're ignored once a user exists, but shouldn't sit there).

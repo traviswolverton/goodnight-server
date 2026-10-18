@@ -1,4 +1,4 @@
-# Desk Dashboard web UI
+# Bedside Dashboard web UI
 
 React + TypeScript single-page app. Vite builds it into `frontend/dist`, which
 the FastAPI service serves (`app/spa.py`); there is no separate frontend server
