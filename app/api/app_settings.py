@@ -14,7 +14,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import httpx
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
@@ -32,17 +31,10 @@ from app.settings import settings
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-#: Seconds the Ollama test waits.
-OLLAMA_TEST_TIMEOUT = 5.0
-
 
 class SaveSettings(BaseModel):
     values: dict[str, Any]
     """key -> new value, or null to go back to the .env / built-in value."""
-
-
-class OllamaTest(BaseModel):
-    url: str
 
 
 def _page(request: Request) -> dict[str, object]:
@@ -92,24 +84,3 @@ async def save_settings(request: Request, response: Response, body: SaveSettings
 
     logger.warning("settings changed via the admin API: %s", ", ".join(sorted(body.values)) or "nothing")
     return _page(request)
-
-
-@router.post("/settings/ollama/test")
-async def test_ollama(body: OllamaTest) -> dict[str, object]:
-    """Ask an Ollama server which models it has (GET /api/tags) — the
-    reachability check, and the model picker's list. Saves nothing."""
-    try:
-        url = coerce("ollama_base_url", body.url)
-    except SettingsError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    if url is None:
-        raise HTTPException(status_code=400, detail="Enter a URL to test")
-    try:
-        async with httpx.AsyncClient(timeout=OLLAMA_TEST_TIMEOUT) as client:
-            resp = await client.get(f"{url}/api/tags")
-            resp.raise_for_status()
-            data = resp.json()
-    except Exception as exc:  # noqa: BLE001 - any failure is the answer
-        return {"ok": False, "error": f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__, "models": []}
-    models = sorted(str(m.get("name")) for m in data.get("models", []) if isinstance(m, dict) and m.get("name"))
-    return {"ok": True, "error": None, "models": models}

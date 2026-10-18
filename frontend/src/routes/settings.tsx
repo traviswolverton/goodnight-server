@@ -1,12 +1,11 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Loader2, PlugZap, RotateCcw, ScrollText, Settings2, ShieldCheck, Sparkles, XCircle, type LucideIcon } from 'lucide-react'
+import { Loader2, RotateCcw, ScrollText, Settings2, ShieldCheck, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConnectionsSection } from '@/components/connections-section'
 import { Collapse, InfoToggle } from '@/components/disclosure'
 import { PageHeader } from '@/components/page-header'
 import { LoadError, LoadingBlocks } from '@/components/query-state'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,7 +17,7 @@ import { usePageTitle } from '@/hooks/use-page-title'
 import { api } from '@/lib/api'
 import { errorMessage } from '@/lib/mutations'
 import { settingsQuery } from '@/lib/queries'
-import type { OllamaTestResult, SettingField, SettingsResponse } from '@/lib/types'
+import type { SettingField, SettingsResponse } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 type Value = string | boolean
@@ -77,7 +76,6 @@ export function PreferencesSection() {
 /** An icon and a line of context per group; unknown groups get a plain one. */
 const GROUP_META: Record<string, { icon: LucideIcon; blurb: string }> = {
   'Sign-in and security': { icon: ShieldCheck, blurb: 'Sessions, HTTPS, trusted proxies and how long the audit log is kept.' },
-  'AI assist': { icon: Sparkles, blurb: 'A local Ollama model that helps write templates.' },
   Diagnostics: { icon: ScrollText, blurb: 'What the app writes to its log.' },
 }
 
@@ -86,7 +84,6 @@ function SettingsForm({ data }: { data: SettingsResponse }) {
   const [draft, setDraft] = useState<Draft>(() => Object.fromEntries(data.fields.map((f) => [f.key, toForm(f.value)])))
   const [saving, setSaving] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const [models, setModels] = useState<string[] | null>(null)
 
   const groups = useMemo(() => {
     const byGroup = new Map<string, SettingField[]>()
@@ -138,11 +135,6 @@ function SettingsForm({ data }: { data: SettingsResponse }) {
               </div>
             </CardHeader>
             <CardContent className="divide-y px-0">
-              {group === 'AI assist' && (
-                <div className="px-4 py-4 sm:px-6">
-                  <OllamaTest url={draft.ollama_base_url === RESET ? '' : String(draft.ollama_base_url)} onModels={setModels} />
-                </div>
-              )}
               {fields.map((field) => (
                 <SettingRow
                   key={field.key}
@@ -150,7 +142,6 @@ function SettingsForm({ data }: { data: SettingsResponse }) {
                   value={draft[field.key]}
                   onChange={(value) => set(field.key, value)}
                   lockedOff={field.key === 'https_only' && !data.request_is_https && field.value === false}
-                  choices={field.key === 'ollama_model' ? models : null}
                 />
               ))}
             </CardContent>
@@ -198,13 +189,11 @@ function SettingRow({
   value,
   onChange,
   lockedOff,
-  choices,
 }: {
   field: SettingField
   value: Value | typeof RESET
   onChange: (value: Value | typeof RESET) => void
   lockedOff: boolean
-  choices: string[] | null
 }) {
   const id = `setting-${field.key}`
   const resetting = value === RESET
@@ -226,8 +215,8 @@ function SettingRow({
         onCheckedChange={(checked) => onChange(checked)}
       />
     )
-  } else if (field.kind === 'select' || (choices && choices.length > 0)) {
-    const options = field.kind === 'select' ? field.options : [...new Set([...(choices ?? []), String(current)])].filter(Boolean)
+  } else if (field.kind === 'select') {
+    const options = field.options
     input = (
       <Select value={String(current)} onValueChange={onChange} disabled={resetting}>
         <SelectTrigger id={id} className="w-full" aria-describedby={described}>
@@ -301,57 +290,6 @@ function SettingRow({
           <p className="max-w-prose pt-3 text-sm text-muted-foreground">{field.help}</p>
         </Collapse>
       )}
-    </div>
-  )
-}
-
-/** Checks the Ollama URL as typed and fills the model picker. */
-function OllamaTest({ url, onModels }: { url: string; onModels: (models: string[] | null) => void }) {
-  const [pending, setPending] = useState(false)
-  const [result, setResult] = useState<OllamaTestResult | null>(null)
-  const [failure, setFailure] = useState<string | null>(null)
-
-  async function run() {
-    setPending(true)
-    setResult(null)
-    setFailure(null)
-    try {
-      const found = await api<OllamaTestResult>('/api/settings/ollama/test', { method: 'POST', body: { url } })
-      setResult(found)
-      onModels(found.ok ? found.models : null)
-    } catch (error) {
-      setFailure(errorMessage(error, 'The test failed'))
-      onModels(null)
-    } finally {
-      setPending(false)
-    }
-  }
-
-  return (
-    <div className="grid gap-2">
-      <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => void run()} disabled={pending || !url.trim()}>
-        {pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <PlugZap aria-hidden="true" />}
-        {pending ? 'Testing…' : 'Test Ollama'}
-      </Button>
-      <div aria-live="polite" className="text-sm">
-        {failure && (
-          <Alert variant="destructive">
-            <AlertDescription>{failure}</AlertDescription>
-          </Alert>
-        )}
-        {result &&
-          (result.ok ? (
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-emerald-600" aria-hidden="true" />
-              Reached it: {result.models.length} model{result.models.length === 1 ? '' : 's'}. Pick one below.
-            </span>
-          ) : (
-            <span className="flex items-center gap-2 text-destructive">
-              <XCircle className="size-4" aria-hidden="true" />
-              Couldn’t reach it: {result.error}
-            </span>
-          ))}
-      </div>
     </div>
   )
 }

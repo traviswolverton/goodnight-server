@@ -295,8 +295,3 @@ export interface SettingsResponse {
   /** HTTPS only can be turned on only from an HTTPS page. */
   request_is_https: boolean
 }
-export interface OllamaTestResult {
-  ok: boolean
-  error: string | null
-  models: string[]
-}

@@ -106,7 +106,8 @@ and their pages). The unit is a remote control for Home Assistant, which
 was the only adapter doing any work, so Home Assistant became a plain
 connection (below). The desk repo still has all of it, and `git log` here
 has the removal commits. What stayed: Actions, buttons, sounds, the device's
-settings, and the AI plumbing (`app/ai_assist.py`).
+settings. (The AI template helper, an Ollama agent that was never wired into
+the UI, was removed on 2026-10-18.)
 
 ## Architecture: one Home Assistant, read on demand
 Home Assistant is a connection like the broker and the database: a URL, a
@@ -252,47 +253,6 @@ set by PWM duty, so "volume" is coarse — fine for this.)
 **Hardware:** passive piezo on GPIO 25, driven by the ESP32's LEDC PWM
 (see the device repo's DESIGN.md).
 
-## AI-assisted template generation (app/ai_assist.py)
-A local Ollama model can draft the template for an Action's short
-`state_template` (`TemplateKind = "state"`). **Nothing in the UI calls it
-yet:** the module was kept when the desk unit's card editor was removed, for
-a possible helper on the Actions page. The Settings page still has its
-Ollama URL and model.
-
-**How it works.** Rather than one big prompt with a dump of live values, the
-model gets read-only **tools** — `search_entities` (find a Home Assistant
-entity id by name; a real install has thousands), `get_entity` (one entity
-exactly as a template sees it), `get_device_readings` and
-`list_existing_templates` — and `run_agent()` runs a tool-calling loop
-(at most `_MAX_AGENT_TURNS` = 8). Consulting a tool and heeding its result
-turned out to be separate things, so every candidate answer is checked
-before it's accepted: it must name only entities that exist
-(`_unknown_entities()`) and trial-render with `StrictUndefined`, the way the
-Preview does (`_render_error()`), so a guessed field name is an error, not
-a blank. A failed check gives the model one corrective turn naming what was
-wrong; a missing-filter error also hints at `{{ '{:,}'.format(value) }}`-style
-formatting, which the sandbox allows.
-
-**Safety property, unconditional:** the answer only ever fills the editor's
-textarea, and is never auto-saved. It goes through the same Preview (real
-sandboxed render and validation — a state must fit in 11 plain-ASCII
-characters) as anything typed by hand, so a bad generation shows a render
-error rather than breaking anything.
-
-**Ollama runs on the host**, not in this compose stack:
-`docker-compose.yml`'s `extra_hosts: host.docker.internal:host-gateway` is
-required for the container to reach it on plain Linux Docker.
-`OLLAMA_BASE_URL` unset disables the feature (`run_agent()` raises a clear
-`AIAssistError`) rather than every request hanging against an unreachable
-default.
-
-**Model choice matters.** `OLLAMA_MODEL` defaults to `qwen2.5:14b`: on a
-real template request it got 3 of 3 right, while `llama3.1:8b` went 0 for 3
-(after its tool calls it lost the request). It's ~9 GB, which fits an 11 GB
-GPU. Some models tagged with "tools" capability (`qwen2.5-coder:14b` on the
-Ollama version tested) emit a tool call as plain text instead of the
-structured `message.tool_calls` field; `_extract_tool_calls()` handles both.
-
 ## Security / network exposure
 The HTTP API is bound to all interfaces (Docker's default when a compose
 port mapping doesn't specify a host IP, overridable with `APP_BIND`) —
@@ -408,4 +368,3 @@ profile) is likewise published on all interfaces, on host port 1884.
   `docs/plan-screen-rendering.md`. Decided 2026-09-29, not yet implemented
   (the device is built and running; its screen is now one big line, so that
   plan's font and layout details are out of date).
-- Nothing calls `app/ai_assist.py` yet (see its section above).

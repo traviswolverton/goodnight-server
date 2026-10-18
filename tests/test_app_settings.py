@@ -10,7 +10,6 @@ import yaml
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-import app.api.app_settings as api_module
 from app.api import router
 from app.app_settings import FIELDS, SavedSettings, SettingsError, coerce
 from app.settings import settings
@@ -51,8 +50,6 @@ def _field(body, key):
     ("audit_retention_days", "90", 90),
     ("https_only", True, True),
     ("trusted_proxies", " 192.0.2.10 , ::1 ,", "192.0.2.10,::1"),
-    ("ollama_base_url", "http://host:11434/", "http://host:11434"),
-    ("ollama_base_url", "", None),                 # blank turns the feature off
     ("log_level", "debug", "DEBUG"),
 ])
 def test_coerce_accepts(key, raw, expected):
@@ -65,7 +62,6 @@ def test_coerce_accepts(key, raw, expected):
     ("audit_retention_days", "90.5"),             # integers only
     ("https_only", "yes"),
     ("trusted_proxies", "192.0.2.0/24"),         # client_ip() matches exact addresses
-    ("ollama_base_url", "host:11434"),
     ("log_level", "LOUD"),
     ("database_url", "postgresql://x"),            # not editable here
 ])
@@ -134,20 +130,6 @@ def test_https_detected_through_a_trusted_proxy_only(client, monkeypatch):
     assert client.get("/api/settings", headers=headers).json()["request_is_https"] is True
 
 
-def test_ollama_test_lists_models(client, monkeypatch):
-    def handler(request):
-        assert request.url.path == "/api/tags"
-        return httpx.Response(200, json={"models": [{"name": "qwen2.5:14b"}, {"name": "llama3.1:8b"}]})
-    real = httpx.AsyncClient
-    monkeypatch.setattr(api_module.httpx, "AsyncClient",
-                        lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
-    body = client.post("/api/settings/ollama/test", json={"url": "http://ollama:11434"}).json()
-    assert body == {"ok": True, "error": None, "models": ["llama3.1:8b", "qwen2.5:14b"]}
-
-
-def test_ollama_test_unreachable(client):
-    body = client.post("/api/settings/ollama/test", json={"url": "http://127.0.0.1:1"}).json()
-    assert body["ok"] is False and body["error"]
 
 
 def test_saving_drops_settings_that_no_longer_exist(client):

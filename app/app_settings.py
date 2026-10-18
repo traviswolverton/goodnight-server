@@ -72,12 +72,6 @@ FIELDS: tuple[Field, ...] = (
           "Older entries are removed when the app starts. 0 keeps everything.",
           "integer", 0, 3650, "days"),
 
-    Field("ollama_base_url", "Ollama URL", "AI assist",
-          "Where the template Generate buttons send requests. Empty turns the feature off.", "text",
-          placeholder="http://host.docker.internal:11434"),
-    Field("ollama_model", "Model", "AI assist",
-          "Pick one that supports tool calling (see app/settings.py for what's been tried).", "text"),
-
     Field("log_level", "Log level", "Diagnostics",
           "How much the app writes to its log.", "select", options=tuple(LOG_LEVELS)),
 )
@@ -123,14 +117,6 @@ def coerce(key: str, raw: object) -> object:
             except ValueError:
                 raise SettingsError(key, f"'{part}' isn't an IP address (ranges aren't supported)") from None
         return ",".join(parts)
-    if key == "ollama_base_url":
-        if not text:
-            return None
-        if not text.startswith(("http://", "https://")) or any(c.isspace() for c in text):
-            raise SettingsError(key, "Ollama URL must start with http:// or https://")
-        return text.rstrip("/")
-    if key == "ollama_model" and not text:
-        raise SettingsError(key, "Model is required")
     return text
 
 

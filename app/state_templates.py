@@ -50,10 +50,8 @@ def render_single_expression(template_str: str, context: dict[str, object]) -> t
     """Renders one Jinja2 template string against a context. Returns
     (rendered_text, None) on success or (None, error_message) on
     failure. Never raises — every caller decides what to do with a
-    failure itself (show no state, show the exact error in the preview UI,
-    or — app.ai_assist — feed the exact error back to a model for a
-    corrective turn before ever showing a generated template to a
-    person)."""
+    failure itself (show no state, or show the exact error in the preview
+    UI)."""
     try:
         return _TEMPLATE_ENV.from_string(template_str).render(**context).strip(), None
     except Exception as exc:  # noqa: BLE001 - caller decides how to handle this

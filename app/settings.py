@@ -91,27 +91,6 @@ class Settings(BaseSettings):
     # here (app/app_settings.py).
     app_settings_path: str = "config/settings.yaml"
 
-    # AI-assisted template generation (app/ai_assist.py) — Ollama runs on
-    # the host, not in this compose stack; see docker-compose.yml's
-    # extra_hosts entry for how the container reaches it. None entirely
-    # disables the feature rather than failing every request against an
-    # unreachable default host.
-    ollama_base_url: str | None = "http://host.docker.internal:11434"
-    ollama_model: str = "qwen2.5:14b"
-    """Was llama3.1:8b until 2026-09-23. On a template-editing request,
-    qwen2.5:14b got it right 3 times out of 3 (after a corrective turn for
-    guessed field names), while llama3.1:8b managed 0 of 3: after its tool
-    calls it lost the request and answered about something else. qwen2.5:14b
-    (9 GB) fits the host's 11 GB GPU.
-
-    Also verified live 2026-09-18 that llama3.1:8b and qwen2.5:7b populate
-    Ollama's structured `message.tool_calls` field, unlike
-    qwen2.5-coder:14b on the same Ollama version — that one emitted a
-    tool-call-shaped JSON blob as plain text `content` instead, despite
-    being tagged with "tools" capability. app.ai_assist parses both
-    shapes defensively, but pick a model you've confirmed actually
-    round-trips tool calls correctly if you change this."""
-
     # Shown in the web UI footer. The Docker build sets it (see Dockerfile).
     app_version: str = "dev"
 

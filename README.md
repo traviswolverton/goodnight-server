@@ -48,7 +48,7 @@ access token) on the web UI's **Settings** page; the broker and database
 can be changed there too. Each change is tested before it's saved, and the saved
 values override `.env` (`config/connections.yaml`). The rest of the tunable
 values are in its Preferences section. These are sessions,
-HTTPS and proxies, audit retention, Ollama, and log level. They take effect
+HTTPS and proxies, audit retention, and log level. They take effect
 immediately on save, with no restart (`config/settings.yaml`).
 
 Live configuration (actions, device, connections, settings, encrypted secrets) lives outside

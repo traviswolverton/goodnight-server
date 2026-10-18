@@ -287,7 +287,7 @@ class DeviceState:
 
 
 #: The one device this service talks to. Module-level (not app.state) so
-#: anything can read it without the app, e.g. app.ai_assist.
+#: anything can read it without the app.
 device_state = DeviceState()
 
 

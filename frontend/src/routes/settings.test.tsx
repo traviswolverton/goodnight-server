@@ -19,8 +19,6 @@ const data: SettingsResponse = {
     field({ key: 'session_idle_hours', label: 'Sign out after idle', kind: 'number', value: 24, baseline: 24, unit: 'hours', source: 'env' }),
     field({ key: 'audit_retention_days', label: 'Keep audit log for', kind: 'integer', value: 90, baseline: 365, source: 'app' }),
     field({ key: 'https_only', label: 'HTTPS only', kind: 'boolean', group: 'Sign-in and security', value: false, baseline: false }),
-    field({ key: 'ollama_base_url', label: 'Ollama URL', kind: 'text', group: 'AI assist', value: 'http://ollama:11434' }),
-    field({ key: 'ollama_model', label: 'Model', kind: 'text', group: 'AI assist', value: 'qwen2.5:14b' }),
   ],
   request_is_https: false,
 }
@@ -98,14 +96,5 @@ describe('PreferencesSection', () => {
     renderPage()
     expect(await screen.findByRole('switch', { name: 'HTTPS only' })).toBeDisabled()
     expect(screen.getByText(/through its HTTPS address/)).toBeInTheDocument()
-  })
-
-  it('turns the model into a picker once Ollama answers', async () => {
-    const user = userEvent.setup()
-    routes['/api/settings/ollama/test'] = { ok: true, error: null, models: ['llama3.1:8b', 'qwen2.5:14b'] }
-    renderPage()
-    await user.click(await screen.findByRole('button', { name: 'Test Ollama' }))
-    expect(await screen.findByText(/Reached it: 2 models/)).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Model' })).toBeInTheDocument()
   })
 })

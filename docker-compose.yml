@@ -57,16 +57,8 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       HTTPS_ONLY: ${HTTPS_ONLY:-false}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
-      # AI-assisted template generation (app/ai_assist.py) — Ollama runs
-      # on the host, not in this compose stack. `host.docker.internal`
-      # needs the explicit extra_hosts entry below on Linux (it resolves
-      # for free on Docker Desktop, but this is a plain Linux host).
       # Decrypts config/secrets.enc.yaml (see app/secret_store.py).
       SECRETS_MASTER_KEY: ${SECRETS_MASTER_KEY:-}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       # Live config (connections/actions/device/secrets.enc.yaml) lives OUTSIDE
       # this repo checkout — not git-tracked, edited only through the
