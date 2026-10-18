@@ -1,5 +1,8 @@
 import type { DeviceResponse, DimmerConfig } from '@/lib/types'
 
+/** The button the device keeps for itself: the firmware never publishes it. */
+export const DEVICE_OWN_BUTTON = 8
+
 /** What the screen would do at `lux` with these settings — the page's own
  *  sanity check, not a promise: the device adds hysteresis and a woken state. */
 export function screenAt(lux: number | null | undefined, d: DimmerConfig): string | null {

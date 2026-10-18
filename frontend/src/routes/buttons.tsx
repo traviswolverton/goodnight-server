@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { CheckCheck, Loader2, Pencil, ShieldCheck } from 'lucide-react'
+import { CheckCheck, Loader2, Lock, Pencil, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { AboutLink } from '@/components/about-link'
 import { PageHeader } from '@/components/page-header'
@@ -17,6 +17,7 @@ import { useNow } from '@/hooks/use-now'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { api } from '@/lib/api'
 import { BUTTON_LIT_SECONDS } from '@/lib/actions'
+import { DEVICE_OWN_BUTTON } from '@/lib/device'
 import { toastError } from '@/lib/mutations'
 import { deviceQuery } from '@/lib/queries'
 import type { ButtonBinding, DeviceAction, DeviceResponse, PressKind } from '@/lib/types'
@@ -78,6 +79,7 @@ export function ButtonList({ data, canEdit, onEdit }: { data: DeviceResponse; ca
   return (
     <ul className="grid gap-3" aria-label="Buttons">
       {numbers.map((n) => {
+        if (n === DEVICE_OWN_BUTTON) return <ReservedButton key={n} number={n} />
         const binding = data.config.buttons[String(n)] ?? {}
         const lastPress = data.presses.find((p) => p.button === n)
         const pressed = lastPress !== undefined && now - lastPress.at < BUTTON_LIT_SECONDS
@@ -111,6 +113,24 @@ export function ButtonList({ data, canEdit, onEdit }: { data: DeviceResponse; ca
         )
       })}
     </ul>
+  )
+}
+
+/** Button 8 belongs to the device itself: the firmware never publishes it, so
+ *  a binding here could never run. Shown, but not editable. */
+function ReservedButton({ number }: { number: number }) {
+  return (
+    <li className="flex items-center gap-4 rounded-xl border border-dashed bg-muted/30 p-4 text-muted-foreground">
+      <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-muted text-xl font-semibold tabular-nums" aria-hidden="true">
+        {number}
+      </span>
+      <span className="grid gap-0.5 text-sm">
+        <span className="flex items-center gap-1.5 font-medium">
+          <Lock className="size-3.5" aria-hidden="true" /> Button {number} is reserved for the device
+        </span>
+        <span>It never reaches the server, so it can’t be bound to an action.</span>
+      </span>
+    </li>
   )
 }
 

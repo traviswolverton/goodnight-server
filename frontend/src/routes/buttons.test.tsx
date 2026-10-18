@@ -58,13 +58,23 @@ afterEach(() => {
 })
 
 describe('ButtonList', () => {
-  it('lists the eight buttons in device order with what each press runs', () => {
+  it('lists the bindable buttons in device order with what each press runs', () => {
     withClient(<ButtonList data={data} canEdit onEdit={() => {}} />)
     const tiles = within(screen.getByRole('list', { name: 'Buttons' })).getAllByRole('button')
-    expect(tiles).toHaveLength(8)
+    expect(tiles).toHaveLength(7)
     expect(tiles[0]).toHaveAccessibleName('Button 1: short press Lamp, long press Close garage')
     expect(tiles[1]).toHaveAccessibleName('Button 2: short press nothing, long press nothing')
-    expect(tiles[7]).toHaveAccessibleName('Button 8: short press Lamp, long press nothing')
+    expect(tiles[6]).toHaveAccessibleName('Button 7: short press nothing, long press nothing')
+  })
+
+  it('shows button 8 as reserved for the device, with nothing to edit', async () => {
+    const onEdit = vi.fn()
+    const user = userEvent.setup()
+    withClient(<ButtonList data={data} canEdit onEdit={onEdit} />)
+    expect(screen.getByText('Button 8 is reserved for the device')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Button 8:/ })).toBeNull()
+    await user.click(screen.getByText('Button 8 is reserved for the device'))
+    expect(onEdit).not.toHaveBeenCalled()
   })
 
   it('flags actions that ask to confirm or are checked', () => {
@@ -72,7 +82,7 @@ describe('ButtonList', () => {
     const first = screen.getByRole('button', { name: /^Button 1:/ })
     expect(within(first).getByText('Asks to confirm')).toBeInTheDocument()
     expect(within(first).getByText('Checked')).toBeInTheDocument()
-    expect(within(screen.getByRole('button', { name: /^Button 8:/ })).queryByText('Asks to confirm')).toBeNull()
+    expect(within(screen.getByRole('button', { name: /^Button 2:/ })).queryByText('Asks to confirm')).toBeNull()
   })
 
   it('lights up a button that was just pressed', () => {
