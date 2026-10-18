@@ -13,7 +13,7 @@ describe('describeAction', () => {
   it('summarises each kind in one line', () => {
     expect(describeAction({ id: 'a', kind: 'service', service: 'light.toggle', target: 'light.desk' })).toBe('light.toggle → light.desk')
     expect(describeAction({ id: 'a', kind: 'script', service: null, target: 'script.movie' })).toBe('script.movie')
-    expect(describeAction({ id: 'bed', kind: 'event', service: null, target: null })).toBe('event desk_dashboard_action (bed)')
+    expect(describeAction({ id: 'bed', kind: 'event', service: null, target: null })).toBe('event bedside_dashboard_action (bed)')
   })
 })
 

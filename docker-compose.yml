@@ -51,7 +51,7 @@ services:
       # button presses and the device link must keep running if the database is down;
       # the app retries the connection in the background.
       DATABASE_URL: ${DATABASE_URL:?set in .env}
-      # Authentication (see app/auth/, docs/plan-ui-and-auth.md). The admin
+      # Authentication (see app/auth/ and DESIGN.md). The admin
       # pair only creates the first user, on an empty users table.
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}

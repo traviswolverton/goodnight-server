@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from app.spa import _safe_file, router as spa_router
 
-INDEX = "<!doctype html><title>Desk Dashboard</title><div id=root></div>"
+INDEX = "<!doctype html><title>Bedside Dashboard</title><div id=root></div>"
 
 
 @pytest.fixture

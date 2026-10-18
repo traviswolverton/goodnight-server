@@ -9,7 +9,7 @@
 # `kind` is one of:
 #   service — call `service` (domain.service) on `target`, with extra `data`
 #   script  — run the `target` script.* entity, `data` as its variables
-#   event   — fire `desk_dashboard_action` with {action: <id>, label: ...}
+#   event   — fire `bedside_dashboard_action` with {action: <id>, label: ...}
 #             for a Home Assistant automation to handle
 # `confirm: true` asks for the same press again first (within 5 s).
 # `verify` checks it really happened: {entities: [...], state: closed, timeout: 45}.

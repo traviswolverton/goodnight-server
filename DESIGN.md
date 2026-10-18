@@ -7,11 +7,11 @@ confirming, whether it really happened, which sound to play, the device's
 settings. The ESP32 is intentionally dumb: it reports its sensors and
 presses, and plays and applies whatever this service sends it.
 
-## This fork: the bedside device
-Forked from desk-dashboard-server on 2026-09-27 with full history. The desk
-unit is a status display (320×240 color LCD, rotary encoder, 5 LEDs, camera
-snapshots): homelab services rendered as cards. The bedside unit isn't — see
-"What the bedside dropped" below. What differs:
+## The bedside device
+Forked from desk-dashboard-server on 2026-09-27 (full history on the
+`upstream` remote). The desk unit is a status display; the bedside unit is a
+remote control. Everything that existed to show homelab status was removed
+("What was removed from the fork" below).
 
 - **Separate app, shared infrastructure.** Its own database
   (`bedside_dashboard`, on the central Postgres by default) and config dir
@@ -19,9 +19,8 @@ snapshots): homelab services rendered as cards. The bedside unit isn't — see
   runs beside the desk stack. Both use the central MQTT broker
   (192.0.2.25) with separate accounts — `bedside-aggregator` /
   `bedside-esp32` here — whose ACLs keep each to its own topics
-  (`docs/mqtt-broker.md`). Every topic is `bedside/*` instead of
-  `homelab/*`. Bundled Postgres/Mosquitto remain as the `local-db` /
-  `local-mqtt` compose profiles.
+  (`docs/mqtt-broker.md`); every topic here is `bedside/*`. Bundled
+  Postgres/Mosquitto are the `local-db` / `local-mqtt` compose profiles.
 - **The device's hardware is a first-class thing** (`app/device.py`), not
   just a renderer: it reports sensors and presses, and takes settings.
 
@@ -54,7 +53,8 @@ snapshots): homelab services rendered as cards. The bedside unit isn't — see
   `publishButton()` byte for byte (tests/test_device.py checks).
 - **Sensors in templates.** An Action's state text can use the latest
   report: `{{ device.temperature_c }}`, `temperature_f`, `humidity`, `lux`,
-  `screen`, `online`, `last_report_seconds` (`app/state_templates.py`).
+  `screen`, `motion` (true, false, or none for firmware that doesn't report
+  it), `online`, `last_report_seconds` (`app/state_templates.py`).
 - **The screen is the device's own business.** A resting readout (clock,
   light, temperature, humidity — all local to the device) plus brief
   confirmations of what a button press did, alongside its sounds. No
@@ -98,25 +98,15 @@ bedside-dashboard-esp32 repo (`docs/diagnostics-server-brief.md`).
   cover `…/request`), and a denied publish is silent, so a missing ACL line
   looks like a device that never reports.
 
-### What the bedside dropped (2026-09-29)
-Everything the desk unit needs to *show homelab status* was removed, since
-this screen won't: **Cards** (`cards.yaml`, the Cards page, card templates
-and their AI helper endpoints), the **`bedside/status`** message and its
-heartbeat, the Home page's display previews, **camera alerts** (the Frigate
-adapter, `bedside/alert/camera`, the signed `/snapshot` proxy), the desk's
-**icon font** and its line-width tables, the on-screen **Actions menu** (its
-action list and `bedside/action` request/reply topics), and earlier the
-**Pixels** (LEDs). The desk repo still has all of it; `git log` here has
-the removal commits if any of it is wanted back. What stayed: Actions,
-buttons, sounds, the device's settings, and the AI plumbing
-(`app/ai_assist.py`, pointed at Action state text for now).
-
-The same day, **adapters** went too (the plug-in data sources, their poll
-loop, the Adapters page, and the Uptime Kuma, AdGuard, Proxmox, TrueNAS,
-UniFi and Tracearr integrations): this unit is a remote control for Home
-Assistant, which was the only adapter doing any work, and HA already
-integrates most of what the others read. Home Assistant became a plain
-connection (below).
+### What was removed from the fork (2026-09-29)
+Everything the desk unit needs to *show homelab status* is gone, since this
+screen doesn't: the cards, the `bedside/status` message, camera alerts, the
+on-screen Actions menu, the LEDs, and the adapters (the plug-in data sources
+and their pages). The unit is a remote control for Home Assistant, which
+was the only adapter doing any work, so Home Assistant became a plain
+connection (below). The desk repo still has all of it, and `git log` here
+has the removal commits. What stayed: Actions, buttons, sounds, the device's
+settings, and the AI plumbing (`app/ai_assist.py`).
 
 ## Architecture: one Home Assistant, read on demand
 Home Assistant is a connection like the broker and the database: a URL, a
@@ -161,12 +151,8 @@ nothing else there (`docs/mqtt-broker.md`). The bundled broker remains as
 the `local-mqtt` compose profile.
 
 ## Actions (a button asks, the server acts)
-Added 2026-09-26 with the Home Assistant connection, from the desk unit,
-whose on-screen menu sent the chosen action's `id` on `bedside/action`
-(answered on `bedside/action/result`). The bedside has no menu: actions
-are run by **buttons** bound on the Buttons page (see "Button feedback"),
-so the device only ever says which button was pressed. The menu's action
-list and request/reply topics were removed 2026-09-29.
+Actions are run by **buttons** bound on the Buttons page (see "Button
+feedback"), so the device only ever says which button was pressed.
 
 **Architecture, and why:** device → broker → this server → Home
 Assistant's REST API. The more HA-native options were considered and
@@ -185,7 +171,7 @@ the web UI's Actions page) has an `id` (what the device sends), a
 - `service` — call `domain.service` (e.g. `light.toggle`) on an optional
   `target` entity, with optional extra `data`;
 - `script` — run a `script.*` entity, `data` as its variables;
-- `event` — fire `desk_dashboard_action` with `{action: <id>, label}`,
+- `event` — fire `bedside_dashboard_action` with `{action: <id>, label}`,
   for a Home Assistant automation to handle (the logic then lives in HA,
   where HA users expect it).
 
@@ -267,100 +253,45 @@ set by PWM duty, so "volume" is coarse — fine for this.)
 (see the device repo's DESIGN.md).
 
 ## AI-assisted template generation (app/ai_assist.py)
-Added 2026-09-19 on the desk unit: an "AI prompt" box beside each card
-template in the web UI, backed by a local Ollama instance. **On the
-bedside the cards are gone (2026-09-29), and nothing in the UI calls it
-yet**: the plumbing below is kept — the agent loop, its tools and its
-answer checks — pointed at the one template left, an Action's short
-`state_template` (`TemplateKind = "state"`), for a future screen-text or
-Actions-page helper. The history below is from the card era, and is why
-the checks exist.
+A local Ollama model can draft the template for an Action's short
+`state_template` (`TemplateKind = "state"`). **Nothing in the UI calls it
+yet:** the module was kept when the desk unit's card editor was removed, for
+a possible helper on the Actions page. The Settings page still has its
+Ollama URL and model.
 
-Since adapters went (2026-09-29) its tools are `search_entities` (find a
-Home Assistant entity id by name — a real install has thousands),
-`get_entity` (one entity exactly as a template sees it),
-`get_device_readings` and `list_existing_templates`; the caller reads the
-template context once and passes it in. The made-up-name check below now
-looks for entity ids that don't exist (`_unknown_entities()`); in the
-history, read "adapter" for what is now an entity.
+**How it works.** Rather than one big prompt with a dump of live values, the
+model gets read-only **tools** — `search_entities` (find a Home Assistant
+entity id by name; a real install has thousands), `get_entity` (one entity
+exactly as a template sees it), `get_device_readings` and
+`list_existing_templates` — and `run_agent()` runs a tool-calling loop
+(at most `_MAX_AGENT_TURNS` = 8). Consulting a tool and heeding its result
+turned out to be separate things, so every candidate answer is checked
+before it's accepted: it must name only entities that exist
+(`_unknown_entities()`) and trial-render with `StrictUndefined`, the way the
+Preview does (`_render_error()`), so a guessed field name is an error, not
+a blank. A failed check gives the model one corrective turn naming what was
+wrong; a missing-filter error also hints at `{{ '{:,}'.format(value) }}`-style
+formatting, which the sandbox allows.
 
-**Design choice made explicitly, not the obvious default**: rather than
-stuffing a static dump of live variable values into one big prompt, the
-model gets real read-only **tools** and runs an actual tool-calling loop
-(`run_agent()`) — then `list_adapters`, `describe_adapter` (an adapter's
-own `description` plus its current live field values), `get_live_context`
-and `list_existing_templates` (real templates already configured, as style
-examples). The model decides what it needs and looks it up, the same way
-an agent working in this repo reads a file instead of guessing its
-contents, rather than receiving one fixed context blob that goes stale.
+**Safety property, unconditional:** the answer only ever fills the editor's
+textarea, and is never auto-saved. It goes through the same Preview (real
+sandboxed render and validation — a state must fit in 11 plain-ASCII
+characters) as anything typed by hand, so a bad generation shows a render
+error rather than breaking anything.
 
-**Safety property, unconditional**: the model's final answer only ever
-fills the relevant textarea/input in the editor — it is never
-auto-saved. It goes through the exact same Preview step (real Jinja2
-sandboxed render, real validation — a state must fit in 11 plain-ASCII
-characters) as anything typed by hand, so a bad or creative-but-wrong
-generation just shows a render error rather than breaking anything.
+**Ollama runs on the host**, not in this compose stack:
+`docker-compose.yml`'s `extra_hosts: host.docker.internal:host-gateway` is
+required for the container to reach it on plain Linux Docker.
+`OLLAMA_BASE_URL` unset disables the feature (`run_agent()` raises a clear
+`AIAssistError`) rather than every request hanging against an unreachable
+default.
 
-**A second, more surprising failure mode found live**: giving a model
-tools doesn't guarantee it actually uses what they returned. One real
-generation called `describe_adapter` correctly three times, then still
-fabricated different adapter names in its actual answer (`adapters.
-requests.total`, `adapters.up.time_kuma.avg_uptime_pct` instead of the
-real `adguard_main`/`uptime_kuma`) — consulting a tool and heeding its
-result turned out to be two separate things. `run_agent()` now checks
-every candidate final answer against the real names (then
-`_invalid_adapter_references()`, now `_unknown_entities()`) before
-accepting it, and gives the
-model one corrective turn naming exactly which reference was wrong and
-what the real names are, rather than handing a hallucinated answer back
-to the user and relying solely on the Preview-time render error to
-catch it. (While there were adapters, the system prompt also listed
-their exact names up front.)
-
-**A third failure mode, same day**: a generation used a real adapter
-name correctly, then invented a `| comma` filter for thousands
-separators that simply doesn't exist in this project's Jinja2
-environment — the adapter-name check has no way to catch a wrong
-*filter*. `run_agent()` now also actually trial-renders every candidate
-answer (`_render_error()`, rendering the way `app.state_templates.
-render_single_expression()` — the real Preview — does) before accepting it, catching any render failure, not
-just wrong adapter names. Left alone, the model kept guessing different
-nonexistent filters across corrective turns (`intcomma`,
-`format_thousands`, `format_markdown`) without ever landing on a working
-approach, since it had no idea what filters this sandboxed environment
-actually has — the "No filter named" case now gets an extra hint
-pointing at `{{ '{:,}'.format(value) }}`-style Python string formatting
-(which the sandbox does allow), which resolved it in one retry.
-`_MAX_AGENT_TURNS` raised 6 → 8 the same day, since both correction
-checks now share that budget with tool calls.
-
-Ollama runs on the **host**, not in this compose stack —
-`docker-compose.yml`'s `extra_hosts: host.docker.internal:host-gateway`
-is required for the container to reach it on plain Linux Docker (it
-resolves for free on Docker Desktop, but not here). `OLLAMA_BASE_URL`
-unset disables the feature entirely (`run_agent()` raises a clear
-`AIAssistError`) rather than every request hanging against an
-unreachable default.
-
-**Model choice matters more than you'd expect**: verified live
-2026-09-18 that `llama3.1:8b` and `qwen2.5:7b` both correctly populate
-Ollama's structured `message.tool_calls` field, while `qwen2.5-coder:14b`
-— despite being tagged with `"tools"` capability in `ollama list` —
-instead emitted a tool-call-shaped JSON object as plain text `content`
-on this Ollama version. `app.ai_assist._extract_tool_calls()` handles
-both shapes defensively.
-
-Round-tripping tool calls isn't enough, though. On 2026-09-23 a real
-request ("keep line 1 and 2, add a new line 3 showing proxmox total memory
-used, a "/", then total memory, plus a percentage") went 0 for 3 on
-`llama3.1:8b`: after its tool calls it lost the request and answered with
-prose or a template about some other adapter. `qwen2.5:14b` went 3 for 3,
-so `OLLAMA_MODEL` now defaults to it. It's ~9GB, which still fits a
-1080 Ti (11GB VRAM). The same session tightened what `run_agent()`
-accepts: the editor's current text is part of the prompt, generated
-answers are trial-rendered with StrictUndefined (a guessed field name is
-an error, not a blank), and a correction for a guessed field lists the
-real field names at that point of the path.
+**Model choice matters.** `OLLAMA_MODEL` defaults to `qwen2.5:14b`: on a
+real template request it got 3 of 3 right, while `llama3.1:8b` went 0 for 3
+(after its tool calls it lost the request). It's ~9 GB, which fits an 11 GB
+GPU. Some models tagged with "tools" capability (`qwen2.5-coder:14b` on the
+Ollama version tested) emit a tool call as plain text instead of the
+structured `message.tool_calls` field; `_extract_tool_calls()` handles both.
 
 ## Security / network exposure
 The HTTP API is bound to all interfaces (Docker's default when a compose
@@ -381,7 +312,7 @@ profile) is likewise published on all interfaces, on host port 1884.
   the same rules from `mosquitto/config/`. Verified end-to-end on the
   bundled broker.
 - **The HTTP API and web UI require a login** (since 2026-09-21; see
-  `docs/plan-ui-and-auth.md` and `app/auth/`). Everything is default-deny —
+  `app/auth/`). Everything is default-deny —
   `tests/test_auth_coverage.py` fails if a route is neither protected nor on
   its explicit public allowlist. The only open routes are `/healthz`, the
   login endpoint, `/device/config` (the device token instead), and the React
@@ -448,73 +379,33 @@ profile) is likewise published on all interfaces, on host port 1884.
     the LAN for `/device/config` (token-protected).
 
 ## Deployment
-- ~~Flask or FastAPI~~ — FastAPI, containerized (see `Dockerfile`)
-- ~~Deploy via Portainer from a git stack file~~ — tried this (a Portainer stack);
-  Portainer CE can't reliably run `docker compose build` on a remote host
-  through the agent (BuildKit worker-listing breaks over the tunnel), and
-  even fixed, a git-stack's relative bind mounts resolve against
-  Portainer's own checkout, not the remote host's filesystem — the
-  container would start with no config. Neither is a compose-file problem;
-  they're Portainer-CE-plus-remote-agent limitations.
-- Actual pattern (matches `/opt/another-stack`, the existing convention
-  for this host — most other Portainer stacks avoid this entirely by only
-  ever referencing pre-built third-party images, never building custom
-  code): `git clone`/`pull` this repo directly onto the target host
-  (`docker-host`), `cp .env.example .env` and fill in real secrets, then
-  `docker compose up -d --build` run locally there. Building happens on
-  the host's own Docker daemon — no agent tunnel involved — and relative
-  bind mounts resolve correctly since the checkout actually lives where
-  Docker is running. `restart: unless-stopped` on every service handles
-  surviving a reboot; no separate systemd unit needed for the compose part
-  (unlike another-stack's older Streamlit component, which predates it
-  moving to compose and still runs via systemd + a venv).
-- **Config is not in git (changed 2026-09-19).** The live
+- FastAPI, containerized (see `Dockerfile`).
+- Run from a checkout on the target host: `git clone`/`pull` this repo
+  there, `cp .env.example .env` and fill in the secrets, then
+  `docker compose up -d --build` run locally. Building on the host's own
+  Docker daemon keeps relative bind mounts resolving where Docker runs
+  (a Portainer git-stack on a remote agent can't do either reliably), and
+  `restart: unless-stopped` on every service survives a reboot with no
+  separate systemd unit.
+- **Config is not in git.** The live
   `connections.yaml`/`actions.yaml`/`device.yaml`/`secrets.enc.yaml` live in
   `/opt/bedside-dashboard-data/config` on the host, mounted at `/app/config`
   — edited through the running app, so live edits never show up as git
   diffs. `config.example/` in the repo is the template for a fresh
-  deploy. This replaces the earlier "gospel configs in git, secrets out
-  of git" convention. Passwords and tokens are Fernet-encrypted in
+  deploy. Passwords and tokens are Fernet-encrypted in
   `secrets.enc.yaml` (`app/secret_store.py`, referenced from
   `connections.yaml` as `password: {secret: <name>}`); the one value held
   in the clear is `SECRETS_MASTER_KEY` in the gitignored `.env`. The
   Settings page's *Restart* (after a broker or database change)
   SIGTERMs the process so Docker's `restart: unless-stopped` brings it
   back — no docker socket mounted. (Until 2026-09-29 there was also an
-  Adapters page and `adapters.yaml`; see "What the bedside dropped".)
-- Good Docker Swarm candidate — stateless, no GPU/hardware coupling
-- Homelab repo: github.com/traviswolverton/homelab (for reference/context on
-  existing conventions, not necessarily where this new repo lives)
+  Adapters page and `adapters.yaml`; see "What was removed from the fork".)
 
-## Open items for Claude Code to help resolve
-- ~~Pick Flask vs FastAPI~~ — FastAPI, scaffolded (see `app/`)
-- ~~Design the exact `/status` payload schema~~ — done for the desk unit;
-  the bedside dropped the status payload entirely (2026-09-29, see "What the
-  bedside dropped").
-- ~~Decide Mosquitto container config (auth, persistence, topic ACLs)~~ —
-  done: password auth (`mosquitto/config/mosquitto.conf`), two accounts
-  provisioned from env vars at container start (`mosquitto/entrypoint.sh`),
-  and topic ACLs (`mosquitto/config/acl.conf`) restricting
-  `bedside-aggregator` and `bedside-esp32` each to its own topics. Verified
-  end-to-end: anonymous/bad-password connections refused, and a write to a
-  topic the account isn't allowed is silently dropped by the ACL rather than reaching the
-  topic. TLS was deliberately skipped — LAN-only broker; revisit
-  if it's ever exposed beyond the LAN. (2026-09-26 added the Actions
-  menu's `bedside/action` topics; removed 2026-09-29 with the menu. The
-  current accounts and topics are in `docs/mqtt-broker.md`.)
-- ~~Build adapters incrementally~~ — built for the desk unit (AdGuard
-  Home, Uptime Kuma, Frigate, UniFi, Tracearr, Proxmox, TrueNAS); all
-  removed from the bedside 2026-09-29, which talks only to Home Assistant.
-- Scheduled ntfy digest (push a summary of live data at a configured time,
-  e.g. daily 7am) — see `docs/plan-ntfy-digest.md`. Proposed 2026-09-22, not
-  yet implemented; three open questions in that doc (ntfy.sh vs. self-hosted,
-  one digest or several, global vs. per-user) need answers before it starts.
-  Status-change alerts (notify the moment something changes, not on a
-  schedule) were discussed too and sketched as a later Phase 2 in the same
-  doc, once the digest's ntfy-sending machinery exists to build on.
+## Open items
 - Live mirror of the device's 128×32 OLED in the web UI: the device
   publishes its real framebuffer on `bedside/screen` and the Device page
   draws it, so icons and layouts added later just appear — see
   `docs/plan-screen-rendering.md`. Decided 2026-09-29, not yet implemented
   (the device is built and running; its screen is now one big line, so that
   plan's font and layout details are out of date).
+- Nothing calls `app/ai_assist.py` yet (see its section above).

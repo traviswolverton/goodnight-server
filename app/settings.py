@@ -46,14 +46,14 @@ class Settings(BaseSettings):
     # blank turns it off.
     ha_discovery_prefix: str = "homeassistant"
 
-    # Postgres (users / sessions / audit log — docs/plan-ui-and-auth.md).
+    # Postgres (users / sessions / audit log).
     # SQLAlchemy async URL, e.g. postgresql+asyncpg://user:pass@postgres:5432/db
     # (percent-encode any special characters in the password). None disables
     # everything that needs the database; Actions and the device link
     # never depend on it — see app/db.py.
     database_url: str | None = None
 
-    # --- Authentication (docs/plan-ui-and-auth.md) -----------------------
+    # --- Authentication (app/auth/, DESIGN.md) ----------------------------
     # First admin, created once at startup when the users table is empty
     # (then ignored — remove these from .env afterwards).
     admin_username: str | None = None
@@ -98,12 +98,11 @@ class Settings(BaseSettings):
     # unreachable default host.
     ollama_base_url: str | None = "http://host.docker.internal:11434"
     ollama_model: str = "qwen2.5:14b"
-    """Was llama3.1:8b until 2026-09-23. Asked to keep a card's two lines
-    and add a Proxmox memory line, qwen2.5:14b got it right 3 times out of
-    3 (after a corrective turn for guessed field names), while llama3.1:8b
-    managed 0 of 3: after its tool calls it lost the request and answered
-    with prose or a template about some other adapter. qwen2.5:14b (9 GB)
-    fits the host's 11 GB GPU.
+    """Was llama3.1:8b until 2026-09-23. On a template-editing request,
+    qwen2.5:14b got it right 3 times out of 3 (after a corrective turn for
+    guessed field names), while llama3.1:8b managed 0 of 3: after its tool
+    calls it lost the request and answered about something else. qwen2.5:14b
+    (9 GB) fits the host's 11 GB GPU.
 
     Also verified live 2026-09-18 that llama3.1:8b and qwen2.5:7b populate
     Ollama's structured `message.tool_calls` field, unlike

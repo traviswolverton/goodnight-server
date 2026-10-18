@@ -103,9 +103,9 @@ async def test_script_action_turns_the_script_on_with_variables():
     assert json.loads(request.content) == {"entity_id": "script.movie_mode", "variables": {"dim": True}}
 
 
-async def test_event_action_fires_desk_dashboard_action_with_its_id():
+async def test_event_action_fires_bedside_dashboard_action_with_its_id():
     request = await _run(ActionConfig(id="bedtime", label="Bedtime", kind="event"))
-    assert request.url.path == "/api/events/desk_dashboard_action"
+    assert request.url.path == "/api/events/bedside_dashboard_action"
     assert json.loads(request.content) == {"action": "bedtime", "label": "Bedtime"}
 
 

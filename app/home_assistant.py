@@ -22,8 +22,9 @@ from dataclasses import dataclass
 import httpx
 
 #: What the `event` action kind fires; an automation triggers on it with
-#: `platform: event` / `event_type: desk_dashboard_action`.
-EVENT_TYPE = "desk_dashboard_action"
+#: `platform: event` / `event_type: bedside_dashboard_action`. (Not the desk
+#: dashboard's name: both can share one Home Assistant without their events mixing.)
+EVENT_TYPE = "bedside_dashboard_action"
 
 #: Seconds any one request to Home Assistant may take.
 REQUEST_TIMEOUT_SECONDS = 10.0

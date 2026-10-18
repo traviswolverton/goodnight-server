@@ -1,5 +1,4 @@
-"""Postgres access (users / sessions / audit log — see
-docs/plan-ui-and-auth.md). Deliberately NOT a hard dependency of the rest
+"""Postgres access (users / sessions / audit log). Deliberately NOT a hard dependency of the rest
 of the app: button presses, Actions and the device link are this
 service's actual job and must keep running when the database is down or
 not configured. So `Database` never raises out of start(); it connects (and

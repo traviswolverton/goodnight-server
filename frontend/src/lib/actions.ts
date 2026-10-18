@@ -4,7 +4,7 @@ import type { ActionConfig } from '@/lib/types'
 export function describeAction(a: Pick<ActionConfig, 'kind' | 'service' | 'target' | 'id'>): string {
   if (a.kind === 'service') return `${a.service ?? '?'}${a.target ? ` → ${a.target}` : ''}`
   if (a.kind === 'script') return a.target ?? '?'
-  return `event desk_dashboard_action (${a.id})`
+  return `event bedside_dashboard_action (${a.id})`
 }
 
 /** An id from a label: "Desk lamp" → "desk_lamp". */
@@ -42,7 +42,7 @@ export function explainAction(a: Explainable): string[] {
       ? `calls the service ${a.service || '…'}${a.target ? ` on ${a.target}` : ''}`
       : a.kind === 'script'
         ? `runs the script ${a.target || '…'}`
-        : `fires the desk_dashboard_action event (action: ${a.id || '…'}) for an automation to handle`
+        : `fires the bedside_dashboard_action event (action: ${a.id || '…'}) for an automation to handle`
   const steps: string[] = []
   if (a.confirm) {
     steps.push(

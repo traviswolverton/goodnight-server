@@ -2,7 +2,7 @@
 
 React + TypeScript single-page app. Vite builds it into `frontend/dist`, which
 the FastAPI service serves (`app/spa.py`); there is no separate frontend server
-in production. Architecture and plan: `docs/plan-ui-and-auth.md`.
+in production. Auth and the API it talks to: `app/auth/`, and DESIGN.md's "Security / network exposure".
 
 **Stack:** Vite · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui (Radix) ·
 TanStack Router + Query · Sonner · Vitest + Testing Library.

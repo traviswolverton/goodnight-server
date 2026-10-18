@@ -133,24 +133,9 @@ const usersRoute = createRoute({
 const mqttRoute = createRoute({ getParentRoute: () => appRoute, path: '/mqtt', component: lazyRouteComponent(() => import('@/routes/mqtt'), 'MqttPage') })
 const profileRoute = createRoute({ getParentRoute: () => appRoute, path: '/profile', component: lazyRouteComponent(() => import('@/routes/profile'), 'ProfilePage') })
 
-/** Old addresses (the desk-era card editor, the server-rendered MQTT docs,
- *  the Adapters page and the Connections page, now part of Settings) still
- *  work as bookmarks: they land on the nearest
+/** Old addresses (the server-rendered MQTT docs, and the Connections page,
+ *  now part of Settings) still work as bookmarks: they land on the nearest
  *  page here. */
-const oldEditorRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/tools/lines-template',
-  beforeLoad: () => {
-    throw redirect({ to: '/' })
-  },
-})
-const oldAdaptersRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/adapters',
-  beforeLoad: () => {
-    throw redirect({ to: '/settings' })
-  },
-})
 const oldConnectionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/connections',
@@ -177,9 +162,7 @@ const notFoundRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  oldEditorRoute,
   oldMqttDocsRoute,
-  oldAdaptersRoute,
   oldConnectionsRoute,
   appRoute.addChildren([
     homeRoute,

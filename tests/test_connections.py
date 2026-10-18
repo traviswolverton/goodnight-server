@@ -486,7 +486,7 @@ def test_home_assistant_save_refuses_one_that_fails_its_test(client, ha_check, p
 
 def test_catalog_without_home_assistant_says_to_set_it_up(client):
     resp = client.get("/api/home-assistant/catalog")
-    assert resp.status_code == 409 and "Connections" in resp.json()["detail"]
+    assert resp.status_code == 409 and "Settings page" in resp.json()["detail"]
 
 
 def _old_adapters(paths, body):

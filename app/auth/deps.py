@@ -152,9 +152,9 @@ async def audit_writes(request: Request, ctx: AuthContext = Depends(current_user
 
 
 async def device_access(request: Request) -> None:
-    """GET /device/config: the desk display's device token, sent as
+    """GET /device/config: the bedside device's token, sent as
     `Authorization: Bearer <token>` (a header, so it never lands in an
-    access log the way a query string would). The display has no session
+    access log the way a query string would). The device has no session
     and no user account; this token is all it has."""
     from app.connections import device_token_valid   # local: keeps auth free of connections at import
 

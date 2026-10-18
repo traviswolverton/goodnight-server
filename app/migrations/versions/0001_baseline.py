@@ -1,6 +1,6 @@
 """Baseline: no tables yet. Establishes the revision chain (and proves the
 migration pipeline works end to end); the users/sessions/audit_log tables
-arrive with the auth work (docs/plan-ui-and-auth.md, Phase 1).
+arrive with the auth work (app/auth/).
 
 Revision ID: 0001
 Revises:

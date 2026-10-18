@@ -40,6 +40,8 @@ await step('device', async () => {
   await page.locator('input[aria-describedby$="bright_lux-help"]').fill('35'); await sleep(200)
   await click('Save'); await sleep(800)
   check('device: dimmer saved', (await api('/api/device')).body.config.dimmer.bright_lux === 35)
+  // The "saved" toast sits over the sticky Save bar until it fades.
+  await page.waitForFunction(() => !document.querySelector('[data-sonner-toast]'), { timeout: 10000 }).catch(() => {})
   await page.locator('input[aria-describedby$="dark_lux-help"]').fill('99'); await sleep(200)
   await click('Save'); await sleep(300)
   check('device: refuses dark above bright', /must not be above the full-brightness level/.test(await text()))
@@ -59,9 +61,10 @@ await step('diagnostics', async () => {
 await step('buttons', async () => {
   await goto('/buttons')
   const tiles = await page.$$eval('ul[aria-label=Buttons] button', (b) => b.map((x) => x.getAttribute('aria-label')))
-  check('buttons: eight tiles, 1-4 on the top row', tiles.length === 8 && tiles[0].startsWith('Button 1:') && tiles[4].startsWith('Button 5:'), JSON.stringify(tiles))
+  check('buttons: seven bindable tiles, 1 to 7 in order', tiles.length === 7 && tiles.every((t, i) => t.startsWith(`Button ${i + 1}:`)), JSON.stringify(tiles))
+  check('buttons: button 8 is shown as reserved for the device, not editable', /Button 8 is reserved for the device/.test(await text()))
   const tops = await page.$$eval('ul[aria-label=Buttons] li', (li) => li.map((x) => Math.round(x.getBoundingClientRect().top)))
-  check('buttons: laid out as two rows of four', new Set(tops.slice(0, 4)).size === 1 && new Set(tops.slice(4)).size === 1 && tops[4] > tops[0], JSON.stringify(tops))
+  check('buttons: one row per button, in order', tops.length === 8 && tops.every((t, i) => i === 0 || t > tops[i - 1]), JSON.stringify(tops))
   check('buttons: points to Actions when there are none', /No actions to assign yet/.test(await text()))
   await shot('p1-buttons')
   await page.locator('button[aria-label^="Button 3:"]').click(); await page.waitForSelector('[role=dialog]'); await sleep(400)
@@ -86,8 +89,7 @@ await step('connections', async () => {
   await page.keyboard.press('Escape'); await sleep(300)
 })
 
-await step('adapters (gone)', async () => {
-  await goto('/adapters'); check('old Adapters bookmark → /settings', path() === '/settings', path())
+await step('old bookmarks', async () => {
   await goto('/connections'); check('old Connections bookmark → /settings', path() === '/settings', path())
 })
 
@@ -109,7 +111,6 @@ await step('mqtt + redirects', async () => {
   await goto('/mqtt')
   const t = await text()
   check('mqtt: reference lists the device topics with examples', /bedside\/config/.test(t) && /bedside\/sound/.test(t) && /bedside\/button/.test(t) && /bedside\/diagnostics/.test(t) && !/bedside\/status/.test(t), t.slice(0, 300))
-  await goto('/tools/lines-template'); check('old card editor bookmark → home', path() === '/', path())
   await goto('/docs/mqtt'); check('old MQTT docs bookmark → /mqtt', path() === '/mqtt', path())
   await shot('m1-mqtt')
 })

@@ -104,5 +104,5 @@ scripts), no-store caching on the API, and role checks enforced server-side.
 
 Not built in — worth adding at the proxy if you're exposed long-term: request
 rate limiting at the edge, IP allow-listing, and single sign-on / MFA in front
-(e.g. an Authentik forward-auth or OIDC layer; the app's own OIDC login is
-planned but not built — see `docs/plan-ui-and-auth.md`, Phase 4).
+(e.g. an Authentik forward-auth or OIDC layer; the app has its own
+accounts only, with no OIDC login).

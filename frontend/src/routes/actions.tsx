@@ -526,7 +526,7 @@ export function ActionEditor({
 
             {kind === 'event' && (
               <Diag kind="blank">
-                {`Fires desk_dashboard_action. Trigger a Home Assistant automation with:\n\ntriggers:\n  - trigger: event\n    event_type: desk_dashboard_action\n    event_data:\n      action: ${id || '<id>'}`}
+                {`Fires bedside_dashboard_action. Trigger a Home Assistant automation with:\n\ntriggers:\n  - trigger: event\n    event_type: bedside_dashboard_action\n    event_data:\n      action: ${id || '<id>'}`}
               </Diag>
             )}
 
