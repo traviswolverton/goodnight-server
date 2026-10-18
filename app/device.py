@@ -19,8 +19,8 @@ to show, this module is about the hardware on the nightstand:
   messages cover the gap.
 - **MqttDeviceLink** — its own broker connection: a long-lived receive
   loop, kept apart from status publishing (app/mqtt.py). It also announces the device to Home Assistant via
-  MQTT discovery: three sensors, and a device trigger per button and press
-  length, so presses can drive HA automations as well as (or instead of)
+  MQTT discovery: three sensors, a motion sensor, and a device trigger per
+  bindable button and press length, so presses can drive HA automations as well as (or instead of)
   server-side Actions.
 
 The device sends only raw presses; which Action a button runs is decided
@@ -47,6 +47,9 @@ from app.settings import settings
 logger = logging.getLogger(__name__)
 
 NUM_BUTTONS = 8
+#: The button the device keeps for itself. The firmware never publishes it, so
+#: nothing here can bind it and Home Assistant gets no trigger for it.
+DEVICE_OWN_BUTTON = 8
 PressKind = Literal["short", "long"]
 SoundName = Literal["armed", "running", "success", "failure", "cancel"]
 
@@ -344,6 +347,8 @@ def ha_discovery_messages(prefix: str) -> list[tuple[str, str]]:
     # Device triggers match the payload exactly, so these must be
     # byte-for-byte what the firmware sends (main.cpp publishButton).
     for button in range(1, NUM_BUTTONS + 1):
+        if button == DEVICE_OWN_BUTTON:
+            continue
         for press in ("short", "long"):
             messages.append((
                 f"{prefix}/device_automation/bedside_dashboard/button_{button}_{press}/config",

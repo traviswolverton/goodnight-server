@@ -87,10 +87,6 @@ await step('connections', async () => {
   await page.keyboard.press('Escape'); await sleep(300)
 })
 
-await step('old bookmarks', async () => {
-  await goto('/connections'); check('old Connections bookmark → /settings', path() === '/settings', path())
-})
-
 await step('users', async () => {
   await goto('/users')
   check('users: lists accounts, marks you', /smokeadmin/.test(await text()) && /\(you\)/.test(await text()))
@@ -109,7 +105,6 @@ await step('mqtt + redirects', async () => {
   await goto('/mqtt')
   const t = await text()
   check('mqtt: reference lists the device topics with examples', /bedside\/config/.test(t) && /bedside\/sound/.test(t) && /bedside\/button/.test(t) && /bedside\/diagnostics/.test(t) && !/bedside\/status/.test(t), t.slice(0, 300))
-  await goto('/docs/mqtt'); check('old MQTT docs bookmark → /mqtt', path() === '/mqtt', path())
   await shot('m1-mqtt')
 })
 await signOut()

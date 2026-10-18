@@ -19,7 +19,7 @@ again. Screenshots land in `e2e/shots/` (git-ignored).
 | File | Covers |
 |---|---|
 | `tests/shell.mjs` | Sign-in and redirects, navigation, theme, mobile drawer, sign-out (session really ends), security headers, open-redirect refusal |
-| `tests/pages.mjs` | Every page as admin and as a viewer: home, device, diagnostics, actions, buttons (including button 8 shown as reserved), connections (incl. Home Assistant), users + activity log, MQTT reference, password change, old bookmarks, phone-width layout; secrets never reach the browser |
+| `tests/pages.mjs` | Every page as admin and as a viewer: home, device, diagnostics, actions, buttons (including button 8 shown as reserved), connections (incl. Home Assistant), users + activity log, MQTT reference, password change, phone-width layout; secrets never reach the browser |
 | `tests/a11y.mjs` | axe-core WCAG 2.1 A/AA audit of every page and dialog, light and dark |
 
 The seed config in `seed/` is copied fresh for every run (a

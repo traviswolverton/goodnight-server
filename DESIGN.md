@@ -45,7 +45,7 @@ remote control. Everything that existed to show homelab status was removed
 - **Home Assistant via MQTT discovery.** On connect the server publishes,
   retained under `homeassistant/`, three sensors (temperature, humidity,
   illuminance), a motion binary sensor (the PIR; unknown, not clear, when
-  the firmware sends no `motion`) and a device trigger per button and press length. The
+  the firmware sends no `motion`) and a device trigger per bindable button (1–7) and press length. The
   sensors read the device's own topic, so they don't depend on the server
   staying up. HA already reads the central broker, so nothing else is
   needed; the server's account may only write this device's discovery

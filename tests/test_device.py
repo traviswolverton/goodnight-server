@@ -296,11 +296,12 @@ async def test_sounds_without_a_connection_are_dropped_quietly(paths, state):
 
 # --- Home Assistant discovery ----------------------------------------------------
 
-def test_discovery_announces_three_sensors_a_motion_sensor_and_a_trigger_per_press():
+def test_discovery_announces_three_sensors_a_motion_sensor_and_a_trigger_per_bindable_press():
     messages = dict(ha_discovery_messages("homeassistant"))
     sensors = [t for t in messages if "/sensor/" in t]
     triggers = [t for t in messages if "/device_automation/" in t]
-    assert len(sensors) == 3 and len(triggers) == NUM_BUTTONS * 2
+    assert len(sensors) == 3 and len(triggers) == (NUM_BUTTONS - 1) * 2
+    assert not any("button_8" in t for t in triggers)  # the device's own button
 
     temp = json.loads(messages["homeassistant/sensor/bedside_dashboard/temperature_c/config"])
     assert temp["state_topic"] == "bedside/sensors"
