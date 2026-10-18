@@ -92,7 +92,7 @@ other length is ignored (that doubles as the version check).
    the first frame" / the last frame dimmed with its age.
 4. The Device guide on the About page gets the screen in its picture.
 
-### Firmware (bedside-dashboard-esp32)
+### Firmware (goodnight-device)
 
 1. After a frame is sent to the panel, note that the buffer may have
    changed. A small module publishes `bedside/screen` (retained, 512 bytes

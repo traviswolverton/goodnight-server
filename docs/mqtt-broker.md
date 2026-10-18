@@ -102,7 +102,7 @@ Set up once:
    one is saved there, the device is handed this app's broker with
    `MQTT_CLIENT_USERNAME`/`MQTT_CLIENT_PASSWORD` from `.env`.
 2. Under **Device token**, make a token, then put the two lines it shows
-   (`SERVER_URL`, `DEVICE_TOKEN`) in bedside-dashboard-esp32's
+   (`SERVER_URL`, `DEVICE_TOKEN`) in goodnight-device's
    `include/secrets.h` and flash it once. From the shell instead:
    `docker compose exec app python -m app.connections new-device-token`.
 

@@ -71,7 +71,7 @@ FAST_DIAGNOSTICS_RENEW_SECONDS = 30.0
 
 class DimmerConfig(BaseModel):
     """Room light → screen brightness. Mirrors the firmware's DimmerSettings
-    (bedside-dashboard-esp32 include/dimmer.h), including its ranges — the
+    (goodnight-device include/dimmer.h), including its ranges — the
     device clamps too, but rejecting here means the page says why."""
 
     bright_lux: float = Field(20.0, ge=0, le=65000)

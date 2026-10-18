@@ -215,7 +215,7 @@ async def save_database_connection(request: Request, body: DatabaseSaveForm) -> 
 # --- Display (the bedside ESP32) ---------------------------------------------
 
 #: The device's fixed-size buffers for what /device/config returns
-#: (bedside-dashboard-esp32 include/device_config.h), minus the terminator.
+#: (goodnight-device include/device_config.h), minus the terminator.
 DISPLAY_LIMITS = {"host": 63, "username": 47, "password": 95}
 
 

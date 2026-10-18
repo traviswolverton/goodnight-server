@@ -1,5 +1,5 @@
 {
-  "name": "desk-dashboard-e2e",
+  "name": "goodnight-e2e",
   "private": true,
   "type": "module",
   "description": "Browser tests against the real Docker image (see README.md)",

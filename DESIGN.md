@@ -8,8 +8,8 @@ settings. The ESP32 is intentionally dumb: it reports its sensors and
 presses, and plays and applies whatever this service sends it.
 
 ## The bedside device
-Forked from desk-dashboard-server on 2026-09-27 (full history on the
-`upstream` remote). The desk unit is a status display; the bedside unit is a
+Forked from a desk-dashboard server on 2026-09-27 (its earlier history
+is squashed into this repo's first commit). The desk unit is a status display; the bedside unit is a
 remote control. Everything that existed to show homelab status was removed
 ("What was removed from the fork" below).
 
@@ -68,7 +68,7 @@ sensor, button expander, joystick axes, DHT11) as answering / not
 answering, the raw joystick, buttons 1–8 lit while held or just pressed,
 Wi-Fi signal, address, uptime, firmware build and free heap, and (for
 admins) the buzzer's sound test. The firmware's contract is in the
-bedside-dashboard-esp32 repo (`docs/diagnostics-server-brief.md`).
+goodnight-device repo (`docs/diagnostics-server-brief.md`).
 
 - **Fast mode is kept alive by polling.** The page polls
   `GET /api/device/diagnostics` once a second, and the server turns that
@@ -323,7 +323,7 @@ profile) is likewise published on all interfaces, on host port 1884.
     access log. The endpoint hands out the `bedside-esp32` password over
     plain HTTP. That's accepted because the device's MQTT connection
     already sends the same password in the clear on the same LAN. The
-    firmware (bedside-dashboard-esp32 `device_config.cpp`) keeps a fetched
+    firmware (goodnight-device `device_config.cpp`) keeps a fetched
     change only once it has connected with it, and rolls back otherwise.
   - Also: one strict CSP on every response (`script-src 'self'`, no inline
     scripts), `no-store` on `/api`, password changes share the login

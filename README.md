@@ -1,8 +1,9 @@
-# Bedside Dashboard Server
+# Goodnight Server
 
-The bedside sibling of [desk-dashboard-server](https://github.com/traviswolverton/desk-dashboard-server),
-forked with full history (`upstream` remote), for a nightstand ESP32
-([bedside-dashboard-esp32](https://github.com/traviswolverton/bedside-dashboard-esp32))
+The server half of a bedside dashboard (the app calls itself the Bedside
+Dashboard). It grew out of a desk-dashboard server and was forked from it in
+September 2026, and it runs a nightstand ESP32
+([goodnight-device](https://github.com/traviswolverton/goodnight-device))
 with a 128×32 OLED, 8 buttons (7 of them bindable; the eighth is the
 device's own), a joystick, a piezo buzzer, a motion sensor, and
 light/temperature/humidity sensors. Where the desk server shows homelab status
@@ -107,3 +108,7 @@ Assistant token are encrypted at rest and never sent to a browser. The ESP32 hol
 only its own MQTT login and device token; a button press is a number, never an
 instruction. Details
 in `DESIGN.md` ("Security / network exposure").
+
+## License
+
+[MIT](LICENSE).
