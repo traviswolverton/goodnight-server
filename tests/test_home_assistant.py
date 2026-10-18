@@ -126,8 +126,8 @@ async def test_secrets_and_whereabouts_never_reach_templates():
         {"entity_id": "camera.front_door", "state": "streaming", "attributes": {
             "access_token": "abc123", "entity_picture": "/api/camera_proxy/camera.front_door?token=abc123",
             "friendly_name": "Front door", "brand": "Reolink", "Some_Api_Key": "k"}},
-        {"entity_id": "person.travis", "state": "home", "attributes": {
-            "latitude": 12.3456, "longitude": -65.4321, "gps_accuracy": 12, "friendly_name": "Travis",
+        {"entity_id": "person.alex", "state": "home", "attributes": {
+            "latitude": 12.3456, "longitude": -65.4321, "gps_accuracy": 12, "friendly_name": "Alex",
             "in_zones": ["zone.home"], "user_id": "u1", "device_trackers": ["device_tracker.phone"]}},
     ]
 
@@ -136,9 +136,9 @@ async def test_secrets_and_whereabouts_never_reach_templates():
     async with _client(handler) as client:
         result = await _ha().states(client)
     camera = result["camera.front_door"]["attributes"]
-    person = result["person.travis"]["attributes"]
+    person = result["person.alex"]["attributes"]
     assert camera == {"friendly_name": "Front door", "brand": "Reolink"}
-    assert person == {"friendly_name": "Travis", "in_zones": ["zone.home"]}
+    assert person == {"friendly_name": "Alex", "in_zones": ["zone.home"]}
     assert "abc123" not in repr(result) and "12.3456" not in repr(result)
 
 

@@ -111,7 +111,7 @@ describe('ConnectionsSection', () => {
 
   it('warns about being signed out when switching to another database that has users', async () => {
     const user = userEvent.setup()
-    routes['/api/connections/database/test'] = report({ schema: 'current', user_count: 2, admins: ['travis'], modes: ['use'] })
+    routes['/api/connections/database/test'] = report({ schema: 'current', user_count: 2, admins: ['alex'], modes: ['use'] })
     renderPage()
     await openDatabaseFlow(user)
     expect(await screen.findByText('You’ll be signed out')).toBeInTheDocument()

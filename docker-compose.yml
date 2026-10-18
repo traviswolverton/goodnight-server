@@ -1,14 +1,13 @@
-# Plain docker-compose stack, run directly on the host — same pattern as
-# /opt/another-stack: `git clone`/`pull` this repo onto the target
-# machine, `cp .env.example .env` and fill in real values, then
-# `docker compose up -d --build`. No registry, no CI, no Portainer build
-# step — Portainer (if used) just shows/monitors it like the other
-# locally-run stacks, it doesn't drive the deploy.
+# Plain docker-compose stack, run directly on the host: `git clone`/`pull`
+# this repo onto the target machine, `cp .env.example .env` and fill in real
+# values, then `docker compose up -d --build`. No registry, no CI, no
+# Portainer build step — Portainer (if used) just shows/monitors it, it
+# doesn't drive the deploy.
 #
 # Secrets and everything else env-driven come in via `environment:` blocks
 # referencing ${VARS} rather than `env_file:` — docker compose auto-loads
 # .env from this directory for that substitution, no extra directive
-# needed (same as another-stack's django service).
+# needed.
 
 services:
   app:

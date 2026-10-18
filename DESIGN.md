@@ -17,7 +17,7 @@ remote control. Everything that existed to show homelab status was removed
   (`bedside_dashboard`, on the central Postgres by default) and config dir
   (`/opt/bedside-dashboard-data/config`), web UI on host port 8001 so it
   runs beside the desk stack. Both use the central MQTT broker
-  (192.0.2.25) with separate accounts — `bedside-aggregator` /
+  with separate accounts — `bedside-aggregator` /
   `bedside-esp32` here — whose ACLs keep each to its own topics
   (`docs/mqtt-broker.md`); every topic here is `bedside/*`. Bundled
   Postgres/Mosquitto are the `local-db` / `local-mqtt` compose profiles.
@@ -139,7 +139,7 @@ availability. The topics are in the table at the top.
 
 **Broker: the central one (since 2026-09-28).** This project originally
 ran its own dedicated Mosquitto and kept off Home Assistant's. It now uses
-the homelab's central broker (192.0.2.25), shared with Home Assistant
+the homelab's central broker, shared with Home Assistant
 and other projects — one broker to run, and HA can see these topics
 directly. What the dedicated broker gave us is kept with ACLs instead:
 each account can touch only its own `bedside/*` topics, so nothing else on
@@ -254,7 +254,7 @@ The HTTP API is bound to all interfaces (Docker's default when a compose
 port mapping doesn't specify a host IP, overridable with `APP_BIND`) —
 reachable by anything on the LAN, not just `localhost`. Deliberate, not
 accidental: the ESP32 has to reach it for `GET /device/config`. The MQTT
-broker is normally the central one (192.0.2.25), which the device and
+broker is normally the central one, which the device and
 this app both reach over the LAN; the bundled broker (`local-mqtt`
 profile) is likewise published on all interfaces, on host port 1884.
 

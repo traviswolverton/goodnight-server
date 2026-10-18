@@ -109,9 +109,9 @@ TARGET = DatabaseConnection("new.lan", 5432, "dash", "u", "pw-1234")
     ({"schema": "none", "can_create_tables": True}, False, ["copy"]),
     ({"schema": "none", "can_create_tables": True}, True, ["copy", "fresh"]),
     ({"schema": "none", "can_create_tables": False}, False, []),
-    ({"schema": "current", "user_count": 2, "admins": ["travis"]}, False, ["use"]),
-    ({"schema": "upgrade", "user_count": 2, "admins": ["travis"], "can_create_tables": True}, False, ["use"]),
-    ({"schema": "upgrade", "user_count": 2, "admins": ["travis"], "can_create_tables": False}, False, []),
+    ({"schema": "current", "user_count": 2, "admins": ["alex"]}, False, ["use"]),
+    ({"schema": "upgrade", "user_count": 2, "admins": ["alex"], "can_create_tables": True}, False, ["use"]),
+    ({"schema": "upgrade", "user_count": 2, "admins": ["alex"], "can_create_tables": False}, False, []),
     ({"schema": "current", "user_count": 0}, False, ["copy"]),          # a copy that failed half-way
     ({"schema": "current", "user_count": 3, "admins": []}, True, []),   # nobody could manage it
     ({"schema": "unknown", "can_create_tables": True}, True, []),

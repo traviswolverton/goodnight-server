@@ -14,14 +14,14 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 const user = (over: Partial<User>): User => ({
-  id: 1, username: 'travis', email: null, role: 'admin', is_active: true, has_password: true, created_at: '', last_login_at: null, ...over,
+  id: 1, username: 'alex', email: null, role: 'admin', is_active: true, has_password: true, created_at: '', last_login_at: null, ...over,
 })
 const users: User[] = [
-  user({ id: 1, username: 'travis', email: 'travis@example.com' }),
+  user({ id: 1, username: 'alex', email: 'alex@example.com' }),
   user({ id: 2, username: 'guest', role: 'viewer', is_active: false }),
 ]
 const entry = (id: number, ts: string, action = 'login.success'): AuditEntry =>
-  ({ id, ts, action, username: 'travis', target: null, detail: null, ip: '192.0.2.5' }) as AuditEntry
+  ({ id, ts, action, username: 'alex', target: null, detail: null, ip: '192.0.2.5' }) as AuditEntry
 
 const fetchMock = vi.fn<typeof fetch>()
 const json = (body: unknown) => new Response(JSON.stringify(body))
@@ -56,12 +56,12 @@ describe('UsersPage', () => {
     renderPage()
     const list = await screen.findByRole('list', { name: 'Accounts' })
     const [me, guest] = within(list).getAllByRole('listitem')
-    expect(me).toHaveTextContent('travis')
+    expect(me).toHaveTextContent('alex')
     expect(me).toHaveTextContent('(you)')
     expect(me).toHaveTextContent('admin')
     expect(guest).toHaveTextContent('viewer')
     expect(guest).toHaveTextContent('Disabled')
-    expect(screen.getByRole('button', { name: 'Delete travis' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete alex' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Delete guest' })).toBeEnabled()
     expect(screen.getByText('2 accounts, 1 active administrator.')).toBeInTheDocument()
   })
