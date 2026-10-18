@@ -131,10 +131,6 @@ position) are dropped before a template can see them. The page only ever
 receives the rendered text: the full entity list stays server-side, since
 viewer accounts can read the Actions page.
 
-Before 2026-09-29 Home Assistant was an adapter in `config/adapters.yaml`;
-on startup the app moves that entry into `connections.yaml` once (keeping
-its encrypted token) and then ignores the file.
-
 ## Transport: MQTT (push, not polling)
 One connection, `app/device.py`'s `MqttDeviceLink`: it publishes the
 device's settings (`bedside/config`, retained), sounds (`bedside/sound`)
@@ -355,11 +351,11 @@ profile) is likewise published on all interfaces, on host port 1884.
   deploy. Passwords and tokens are Fernet-encrypted in
   `secrets.enc.yaml` (`app/secret_store.py`, referenced from
   `connections.yaml` as `password: {secret: <name>}`); the one value held
-  in the clear is `SECRETS_MASTER_KEY` in the gitignored `.env`. The
-  Settings page's *Restart* (after a broker or database change)
-  SIGTERMs the process so Docker's `restart: unless-stopped` brings it
-  back — no docker socket mounted. (Until 2026-09-29 there was also an
-  Adapters page and `adapters.yaml`; see "What was removed from the fork".)
+  in the clear is `SECRETS_MASTER_KEY` in the gitignored `.env`. Saving a
+  broker or database change on the Settings page restarts the app (there's
+  also a plain Restart, `app/api/system.py`): it SIGTERMs the process so
+  Docker's `restart: unless-stopped` brings it back — no docker socket
+  mounted.
 
 ## Open items
 - Live mirror of the device's 128×32 OLED in the web UI: the device

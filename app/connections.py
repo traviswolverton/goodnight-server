@@ -46,9 +46,6 @@ takes effect without a restart:
       verify_ssl: true
       token: {secret: connection_home_assistant_token}
 
-Before 2026-09-29 it was an adapter in config/adapters.yaml;
-import_home_assistant_adapter() moves that one over once.
-
 The checks the UI runs before a save are here too: check_mqtt() and
 inspect_database(), plus copy_database() for moving to an empty one.
 
@@ -286,42 +283,6 @@ def load_home_assistant(settings) -> HomeAssistantConnection | None:
     except (ConnectionConfigError, SecretError) as exc:
         logger.error("can't use the saved Home Assistant connection: %s", exc)
         return None
-
-
-def import_home_assistant_adapter(settings) -> bool:
-    """One-time move: a `home_assistant` adapter in the old
-    config/adapters.yaml (beside connections.yaml) becomes the
-    `home_assistant:` section, keeping its encrypted token where it is.
-    Does nothing once that section exists. True if it moved one."""
-    path = Path(settings.connections_config_path)
-    old = path.with_name("adapters.yaml")
-    try:
-        if not old.exists() or "home_assistant" in _read(path):
-            return False
-        adapters = (yaml.safe_load(os.path.expandvars(old.read_text())) or {}).get("adapters") or []
-    except (ConnectionConfigError, yaml.YAMLError, OSError) as exc:
-        logger.error("couldn't check %s for a Home Assistant adapter: %s", old, exc)
-        return False
-    entry = next((e for e in adapters if isinstance(e, dict) and e.get("type") == "home_assistant"
-                  and e.get("enabled", True)), None)
-    if entry is None:
-        return False
-    options = entry.get("options") or {}
-    token = options.get("token")
-    try:
-        url = _url(options.get("base_url"))
-        if not (isinstance(token, dict) and set(token) == {"secret"}):
-            # A literal (or ${VAR}-expanded) token: encrypt it now.
-            set_secret(settings.secrets_config_path, HOME_ASSISTANT_SECRET, str(token or ""))
-            token = {"secret": HOME_ASSISTANT_SECRET}
-        _write_section(path, "home_assistant", {
-            "url": url, "verify_ssl": _bool(options.get("verify_ssl"), True), "token": dict(token)})
-    except (ConnectionConfigError, SecretError) as exc:
-        logger.error("couldn't move the Home Assistant adapter from %s: %s", old, exc)
-        return False
-    logger.warning("moved Home Assistant from %s to %s; %s is no longer read and can be deleted",
-                   old.name, path.name, old.name)
-    return True
 
 
 def _token_hash(token: str) -> str:

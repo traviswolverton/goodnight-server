@@ -40,8 +40,6 @@ await step('device', async () => {
   await page.locator('input[aria-describedby$="bright_lux-help"]').fill('35'); await sleep(200)
   await click('Save'); await sleep(800)
   check('device: dimmer saved', (await api('/api/device')).body.config.dimmer.bright_lux === 35)
-  // The "saved" toast sits over the sticky Save bar until it fades.
-  await page.waitForFunction(() => !document.querySelector('[data-sonner-toast]'), { timeout: 10000 }).catch(() => {})
   await page.locator('input[aria-describedby$="dark_lux-help"]').fill('99'); await sleep(200)
   await click('Save'); await sleep(300)
   check('device: refuses dark above bright', /must not be above the full-brightness level/.test(await text()))

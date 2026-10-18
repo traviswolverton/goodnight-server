@@ -39,6 +39,9 @@ PG_PW="$(openssl rand -hex 12)"; APP_PW="$(openssl rand -hex 12)"; ADMIN_PW="e2e
 SECRETS_KEY="$(openssl rand -base64 32 | tr '+/' '-_')"   # a Fernet key
 
 echo "==> starting Postgres, Mosquitto and the app"
+# The seed's Home Assistant token lives in the encrypted secret store, like a real one.
+docker run --rm --user "$(id -u):$(id -g)" -v "$WORK/cfg:/app/config" -e SECRETS_MASTER_KEY="$SECRETS_KEY" "dd-$ID-app" \
+  python -c "from app.secret_store import set_secret; set_secret('/app/config/secrets.enc.yaml', 'connection_home_assistant_token', 'literal-test-token')"
 docker network create "$NET" >/dev/null
 docker run -d --name "$ID-mqtt" --network "$NET" --network-alias mqtt eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf >/dev/null
 docker run -d --name "$ID-pg" --network "$NET" --network-alias pg \

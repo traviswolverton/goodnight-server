@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from app.actions import ActionRunner
 from app.api import router as api_router
 from app.app_settings import SavedSettings
-from app.connections import apply_saved_connections, import_home_assistant_adapter, load_home_assistant
+from app.connections import apply_saved_connections, load_home_assistant
 from app.db import Database
 from app.device import MqttDeviceLink, device_state
 from app.home_assistant import HomeAssistant, HomeAssistantLink
@@ -42,7 +42,6 @@ async def lifespan(app: FastAPI):
     app.state.saved_settings.apply(settings, settings.app_settings_path)
     http_client = httpx.AsyncClient()
 
-    import_home_assistant_adapter(settings)
     ha_conn = load_home_assistant(settings)
     home_assistant = HomeAssistantLink(
         HomeAssistant(ha_conn.url, ha_conn.token or "", ha_conn.verify_ssl) if ha_conn else None, http_client)

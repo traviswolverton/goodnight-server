@@ -1,0 +1,9 @@
+# The Home Assistant connection the browser tests start with: a host that
+# doesn't exist, so the tests can check an unreachable Home Assistant. Its
+# token is a secret that run.sh encrypts into secrets.enc.yaml before the app
+# starts (the literal "literal-test-token", so the tests can prove it never
+# reaches the browser).
+home_assistant:
+  url: http://homeassistant.invalid:8123
+  verify_ssl: true
+  token: {secret: connection_home_assistant_token}

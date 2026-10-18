@@ -20,14 +20,13 @@ from app.connections import (
     DatabaseReport,
     MqttConnection,
     apply_saved_connections,
-    import_home_assistant_adapter,
     inspect_database,
     load_home_assistant,
     save_database,
     save_mqtt,
 )
 from app.home_assistant import HomeAssistant, HomeAssistantLink
-from app.secret_store import generate_key, get_secret, set_secret
+from app.secret_store import generate_key
 from app.settings import settings
 from tests.auth_helpers import bypass_auth
 
@@ -487,38 +486,3 @@ def test_home_assistant_save_refuses_one_that_fails_its_test(client, ha_check, p
 def test_catalog_without_home_assistant_says_to_set_it_up(client):
     resp = client.get("/api/home-assistant/catalog")
     assert resp.status_code == 409 and "Settings page" in resp.json()["detail"]
-
-
-def _old_adapters(paths, body):
-    with open(os.path.join(os.path.dirname(paths[0]), "adapters.yaml"), "w") as f:
-        f.write(body)
-
-
-def test_the_old_home_assistant_adapter_moves_over_once(paths):
-    set_secret(paths[1], "home_assistant_token", "old-token")
-    _old_adapters(paths, "adapters:\n  - name: bedroom\n    type: bedside_device\n"
-                         "  - name: home_assistant\n    type: home_assistant\n    options:\n"
-                         "      base_url: http://192.0.2.29:8123/\n      token: {secret: home_assistant_token}\n"
-                         "      verify_ssl: false\n      entities: light.*\n")
-    s = _env_settings(paths)
-    assert import_home_assistant_adapter(s) is True
-    conn = load_home_assistant(s)
-    assert (conn.url, conn.token, conn.verify_ssl) == ("http://192.0.2.29:8123", "old-token", False)
-    assert import_home_assistant_adapter(s) is False  # already there
-
-
-def test_an_old_literal_token_is_encrypted_when_it_moves(paths):
-    _old_adapters(paths, "adapters:\n  - name: ha\n    type: home_assistant\n    options:\n"
-                         "      base_url: http://ha.lan:8123\n      token: literal-token\n")
-    s = _env_settings(paths)
-    assert import_home_assistant_adapter(s) is True
-    assert "literal-token" not in open(paths[0]).read()
-    assert get_secret(paths[1], "connection_home_assistant_token") == "literal-token"
-
-
-def test_nothing_to_move_without_a_home_assistant_adapter(paths):
-    s = _env_settings(paths)
-    assert import_home_assistant_adapter(s) is False  # no adapters.yaml at all
-    _old_adapters(paths, "adapters:\n  - name: kuma\n    type: uptime_kuma\n")
-    assert import_home_assistant_adapter(s) is False
-    assert load_home_assistant(s) is None

@@ -30,7 +30,9 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
         Skip to content
       </a>
       <Outlet />
-      <Toaster richColors closeButton />
+      {/* Lifted clear of the sticky Save bar on the Device and Settings pages, so a
+          "Saved" toast never covers the button you just pressed. */}
+      <Toaster richColors closeButton offset={{ bottom: '5rem' }} mobileOffset={{ bottom: '7rem' }} />
     </>
   ),
   notFoundComponent: NotFoundPage,
