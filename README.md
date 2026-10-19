@@ -16,6 +16,12 @@ device's own hardware checks, joystick and buttons live, for finding a loose
 wire without a serial cable. It also announces the device's sensors and
 button presses to Home Assistant over MQTT discovery.
 
+![The finished bedside dashboard from the front: the OLED shows the time, with the motion sensor's dome at the right.](docs/images/bedside-front.jpg)
+
+| | |
+|---|---|
+| ![From above: eight buttons with a label under each, and the joystick at the right.](docs/images/bedside-top.jpg) | ![From the side: the USB-C cable enters the left wall, and the case sits on a Gridfinity baseplate.](docs/images/bedside-side.jpg) |
+
 - **Web UI** — React (`frontend/`), served by the same container.
 - **API** — FastAPI (`app/`): runs Actions through Home Assistant's REST
   API (`app/home_assistant.py`); the device link (`app/device.py`) sends the
